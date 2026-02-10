@@ -1,6 +1,9 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
+const { sanitizeFKFields } = require('../utils/helpers');
+
+const KB_CATEGORY_FK_FIELDS = ['parent_id'];
 
 const kbCategoryService = {
   /**
@@ -147,24 +150,26 @@ const kbCategoryService = {
   create: async (data) => {
     const { KBCategory } = require('../models');
 
+    const cleanData = sanitizeFKFields(data, KB_CATEGORY_FK_FIELDS);
+
     // Auto-generate slug from name if not provided
-    if (!data.slug) {
-      data.slug = data.name
+    if (!cleanData.slug) {
+      cleanData.slug = cleanData.name
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
     }
 
     // Check slug uniqueness, append number if duplicate
-    let slug = data.slug;
+    let slug = cleanData.slug;
     let suffix = 1;
     while (await KBCategory.findOne({ where: { slug } })) {
-      slug = `${data.slug}-${suffix}`;
+      slug = `${cleanData.slug}-${suffix}`;
       suffix++;
     }
-    data.slug = slug;
+    cleanData.slug = slug;
 
-    const category = await KBCategory.create(data);
+    const category = await KBCategory.create(cleanData);
 
     return await kbCategoryService.getById(category.id);
   },
@@ -184,18 +189,20 @@ const kbCategoryService = {
       throw ApiError.notFound('Category not found');
     }
 
+    const cleanData = sanitizeFKFields(data, KB_CATEGORY_FK_FIELDS);
+
     // If slug is being changed, check uniqueness
-    if (data.slug && data.slug !== category.slug) {
-      let slug = data.slug;
+    if (cleanData.slug && cleanData.slug !== category.slug) {
+      let slug = cleanData.slug;
       let suffix = 1;
       while (await KBCategory.findOne({ where: { slug, id: { [Op.ne]: id } } })) {
-        slug = `${data.slug}-${suffix}`;
+        slug = `${cleanData.slug}-${suffix}`;
         suffix++;
       }
-      data.slug = slug;
+      cleanData.slug = slug;
     }
 
-    await category.update(data);
+    await category.update(cleanData);
 
     return await kbCategoryService.getById(id);
   },

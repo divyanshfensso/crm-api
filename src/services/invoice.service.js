@@ -1,6 +1,9 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
+const { sanitizeFKFields } = require('../utils/helpers');
+
+const INVOICE_FK_FIELDS = ['contact_id', 'company_id', 'deal_id', 'quote_id'];
 
 const calculateItemTotal = (quantity, unitPrice, discountPercent = 0) => {
   const subtotal = quantity * unitPrice;
@@ -164,13 +167,14 @@ const invoiceService = {
       const items = data.items || [];
       const totals = calculateTotals(items, data.tax_rate || 0, data.discount_amount || 0);
 
+      const cleanData = sanitizeFKFields(data, INVOICE_FK_FIELDS);
       const invoice = await Invoice.create(
         {
           invoice_number: invoiceNumber,
-          quote_id: data.quote_id || null,
-          contact_id: data.contact_id || null,
-          company_id: data.company_id || null,
-          deal_id: data.deal_id || null,
+          quote_id: cleanData.quote_id,
+          contact_id: cleanData.contact_id,
+          company_id: cleanData.company_id,
+          deal_id: cleanData.deal_id,
           status: data.status || 'draft',
           subtotal: totals.subtotal,
           tax_rate: data.tax_rate || 0,
@@ -220,10 +224,11 @@ const invoiceService = {
     }
 
     const result = await sequelize.transaction(async (t) => {
+      const cleanData = sanitizeFKFields(data, INVOICE_FK_FIELDS);
       const updateData = {};
-      if (data.contact_id !== undefined) updateData.contact_id = data.contact_id;
-      if (data.company_id !== undefined) updateData.company_id = data.company_id;
-      if (data.deal_id !== undefined) updateData.deal_id = data.deal_id;
+      if (cleanData.contact_id !== undefined) updateData.contact_id = cleanData.contact_id;
+      if (cleanData.company_id !== undefined) updateData.company_id = cleanData.company_id;
+      if (cleanData.deal_id !== undefined) updateData.deal_id = cleanData.deal_id;
       if (data.status !== undefined) updateData.status = data.status;
       if (data.currency !== undefined) updateData.currency = data.currency;
       if (data.issue_date !== undefined) updateData.issue_date = data.issue_date;

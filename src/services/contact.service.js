@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
+const { sanitizeFKFields } = require('../utils/helpers');
 
 const contactService = {
   /**
@@ -133,11 +134,12 @@ const contactService = {
   create: async (data, userId) => {
     const { Contact } = require('../models');
 
-    // Set created_by and default owner_id to current user
+    // Sanitize FK fields and set defaults
+    const cleanData = sanitizeFKFields(data, ['company_id', 'owner_id']);
     const contactData = {
-      ...data,
+      ...cleanData,
       created_by: userId,
-      owner_id: data.owner_id || userId
+      owner_id: cleanData.owner_id || userId
     };
 
     const contact = await Contact.create(contactData);
@@ -161,7 +163,8 @@ const contactService = {
       throw ApiError.notFound('Contact not found');
     }
 
-    await contact.update(data);
+    const cleanData = sanitizeFKFields(data, ['company_id', 'owner_id']);
+    await contact.update(cleanData);
 
     // Fetch the updated contact with relations
     return await contactService.getById(id);

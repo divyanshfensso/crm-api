@@ -40,7 +40,19 @@ const errorHandler = (err, req, res, next) => {
 
   // Handle Sequelize Foreign Key Constraint Errors
   if (err.name === 'SequelizeForeignKeyConstraintError') {
-    error = ApiError.badRequest('Invalid reference to related resource');
+    const fkField = err.fields ? err.fields.join(', ') : 'unknown';
+    const fkTable = err.table || 'unknown';
+    const fkIndex = err.index || 'unknown';
+    console.error('FK Constraint Error Details:', {
+      fields: err.fields,
+      table: err.table,
+      index: err.index,
+      value: err.value,
+      parent: err.parent ? err.parent.message : 'N/A'
+    });
+    error = ApiError.badRequest(
+      `Invalid reference: field '${fkField}' references table '${fkTable}' (index: ${fkIndex})`
+    );
   }
 
   // Handle Sequelize Database Errors

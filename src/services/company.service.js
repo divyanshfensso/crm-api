@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
+const { sanitizeFKFields } = require('../utils/helpers');
 
 const companyService = {
   /**
@@ -124,11 +125,12 @@ const companyService = {
   create: async (data, userId) => {
     const { Company } = require('../models');
 
-    // Set created_by and default owner_id to current user
+    // Sanitize FK fields and set defaults
+    const cleanData = sanitizeFKFields(data, ['owner_id', 'parent_company_id']);
     const companyData = {
-      ...data,
+      ...cleanData,
       created_by: userId,
-      owner_id: data.owner_id || userId
+      owner_id: cleanData.owner_id || userId
     };
 
     const company = await Company.create(companyData);
@@ -152,7 +154,8 @@ const companyService = {
       throw ApiError.notFound('Company not found');
     }
 
-    await company.update(data);
+    const cleanData = sanitizeFKFields(data, ['owner_id', 'parent_company_id']);
+    await company.update(cleanData);
 
     // Fetch the updated company with relations
     return await companyService.getById(id);

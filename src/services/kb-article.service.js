@@ -1,6 +1,9 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
+const { sanitizeFKFields } = require('../utils/helpers');
+
+const KB_ARTICLE_FK_FIELDS = ['category_id'];
 
 const kbArticleService = {
   /**
@@ -119,32 +122,34 @@ const kbArticleService = {
   create: async (data, userId) => {
     const { KBArticle } = require('../models');
 
+    const cleanData = sanitizeFKFields(data, KB_ARTICLE_FK_FIELDS);
+
     // Set author_id
-    data.author_id = userId;
+    cleanData.author_id = userId;
 
     // Auto-generate slug from title if not provided
-    if (!data.slug) {
-      data.slug = data.title
+    if (!cleanData.slug) {
+      cleanData.slug = cleanData.title
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
     }
 
     // Check slug uniqueness, append number if duplicate
-    let slug = data.slug;
+    let slug = cleanData.slug;
     let suffix = 1;
     while (await KBArticle.findOne({ where: { slug } })) {
-      slug = `${data.slug}-${suffix}`;
+      slug = `${cleanData.slug}-${suffix}`;
       suffix++;
     }
-    data.slug = slug;
+    cleanData.slug = slug;
 
     // If status is 'published', set published_at
-    if (data.status === 'published') {
-      data.published_at = new Date();
+    if (cleanData.status === 'published') {
+      cleanData.published_at = new Date();
     }
 
-    const article = await KBArticle.create(data);
+    const article = await KBArticle.create(cleanData);
 
     return await kbArticleService.getById(article.id);
   },
@@ -164,23 +169,25 @@ const kbArticleService = {
       throw ApiError.notFound('Article not found');
     }
 
+    const cleanData = sanitizeFKFields(data, KB_ARTICLE_FK_FIELDS);
+
     // If slug is being changed, check uniqueness
-    if (data.slug && data.slug !== article.slug) {
-      let slug = data.slug;
+    if (cleanData.slug && cleanData.slug !== article.slug) {
+      let slug = cleanData.slug;
       let suffix = 1;
       while (await KBArticle.findOne({ where: { slug, id: { [Op.ne]: id } } })) {
-        slug = `${data.slug}-${suffix}`;
+        slug = `${cleanData.slug}-${suffix}`;
         suffix++;
       }
-      data.slug = slug;
+      cleanData.slug = slug;
     }
 
     // If status changes to 'published' and published_at is null, set published_at
-    if (data.status === 'published' && !article.published_at) {
-      data.published_at = new Date();
+    if (cleanData.status === 'published' && !article.published_at) {
+      cleanData.published_at = new Date();
     }
 
-    await article.update(data);
+    await article.update(cleanData);
 
     return await kbArticleService.getById(id);
   },

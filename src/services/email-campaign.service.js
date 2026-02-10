@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
+const { sanitizeFKFields } = require('../utils/helpers');
 
 const emailCampaignService = {
   /**
@@ -108,8 +109,9 @@ const emailCampaignService = {
   create: async (data, userId) => {
     const { EmailCampaign } = require('../models');
 
+    const cleanData = sanitizeFKFields(data, ['template_id']);
     const campaignData = {
-      ...data,
+      ...cleanData,
       created_by: userId
     };
 
@@ -137,7 +139,8 @@ const emailCampaignService = {
       throw ApiError.badRequest('Only draft campaigns can be updated');
     }
 
-    await campaign.update(data);
+    const cleanData = sanitizeFKFields(data, ['template_id']);
+    await campaign.update(cleanData);
 
     return await emailCampaignService.getById(id);
   },

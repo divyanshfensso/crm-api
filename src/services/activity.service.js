@@ -2,6 +2,9 @@ const { Activity, Contact, Company, Deal, Lead, User, sequelize } = require('../
 const { Op } = require('sequelize');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
 const ApiError = require('../utils/apiError');
+const { sanitizeFKFields } = require('../utils/helpers');
+
+const ACTIVITY_FK_FIELDS = ['contact_id', 'company_id', 'deal_id', 'lead_id'];
 
 class ActivityService {
   async getAll(query) {
@@ -127,8 +130,9 @@ class ActivityService {
   }
 
   async create(data, userId) {
+    const cleanData = sanitizeFKFields(data, ACTIVITY_FK_FIELDS);
     const activityData = {
-      ...data,
+      ...cleanData,
       user_id: userId
     };
 
@@ -144,17 +148,19 @@ class ActivityService {
       throw ApiError.notFound('Activity not found');
     }
 
+    const cleanData = sanitizeFKFields(data, ACTIVITY_FK_FIELDS);
+
     // If marking as completed and it wasn't completed before
-    if (data.completed === true && !activity.completed) {
-      data.completed_at = new Date();
+    if (cleanData.completed === true && !activity.completed) {
+      cleanData.completed_at = new Date();
     }
 
     // If marking as not completed, clear completed_at
-    if (data.completed === false) {
-      data.completed_at = null;
+    if (cleanData.completed === false) {
+      cleanData.completed_at = null;
     }
 
-    await activity.update(data);
+    await activity.update(cleanData);
 
     return this.getById(activity.id);
   }

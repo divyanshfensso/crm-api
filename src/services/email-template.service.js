@@ -93,7 +93,13 @@ const emailTemplateService = {
     const { EmailTemplate } = require('../models');
 
     const templateData = {
-      ...data,
+      name: data.name,
+      subject: data.subject,
+      body_html: data.body_html,
+      body_text: data.body_text || null,
+      module: data.module || 'general',
+      variables: data.variables || null,
+      is_active: data.is_active !== undefined ? data.is_active : true,
       created_by: userId
     };
 

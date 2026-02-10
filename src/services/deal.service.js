@@ -1,6 +1,9 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
+const { sanitizeFKFields } = require('../utils/helpers');
+
+const DEAL_FK_FIELDS = ['contact_id', 'company_id', 'owner_id', 'pipeline_id', 'stage_id'];
 
 const dealService = {
   /**
@@ -155,8 +158,9 @@ const dealService = {
   create: async (data, userId) => {
     const { Deal, Pipeline, PipelineStage } = require('../models');
 
-    let pipelineId = data.pipeline_id;
-    let stageId = data.stage_id;
+    const cleanData = sanitizeFKFields(data, DEAL_FK_FIELDS);
+    let pipelineId = cleanData.pipeline_id;
+    let stageId = cleanData.stage_id;
 
     // If no pipeline specified, use default or first pipeline
     if (!pipelineId) {
@@ -190,19 +194,19 @@ const dealService = {
     }
 
     const dealData = {
-      title: data.title,
-      contact_id: data.contact_id || null,
-      company_id: data.company_id || null,
-      owner_id: data.owner_id || userId,
+      title: cleanData.title,
+      contact_id: cleanData.contact_id,
+      company_id: cleanData.company_id,
+      owner_id: cleanData.owner_id || userId,
       pipeline_id: pipelineId,
       stage_id: stageId,
-      value: data.value || 0,
-      currency: data.currency || 'USD',
-      probability: data.probability !== undefined ? data.probability : probability,
-      expected_close_date: data.expected_close_date || null,
-      status: data.status || 'open',
-      notes: data.notes,
-      tags: data.tags || [],
+      value: cleanData.value || 0,
+      currency: cleanData.currency || 'USD',
+      probability: cleanData.probability !== undefined ? cleanData.probability : probability,
+      expected_close_date: cleanData.expected_close_date || null,
+      status: cleanData.status || 'open',
+      notes: cleanData.notes,
+      tags: cleanData.tags || [],
       created_by: userId,
     };
 
@@ -221,22 +225,23 @@ const dealService = {
       throw ApiError.notFound('Deal not found');
     }
 
+    const cleanData = sanitizeFKFields(data, DEAL_FK_FIELDS);
     const updateData = {};
-    if (data.title !== undefined) updateData.title = data.title;
-    if (data.contact_id !== undefined) updateData.contact_id = data.contact_id;
-    if (data.company_id !== undefined) updateData.company_id = data.company_id;
-    if (data.owner_id !== undefined) updateData.owner_id = data.owner_id;
-    if (data.pipeline_id !== undefined) updateData.pipeline_id = data.pipeline_id;
-    if (data.stage_id !== undefined) updateData.stage_id = data.stage_id;
-    if (data.value !== undefined) updateData.value = data.value;
-    if (data.currency !== undefined) updateData.currency = data.currency;
-    if (data.probability !== undefined) updateData.probability = data.probability;
-    if (data.expected_close_date !== undefined) updateData.expected_close_date = data.expected_close_date;
-    if (data.actual_close_date !== undefined) updateData.actual_close_date = data.actual_close_date;
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.lost_reason !== undefined) updateData.lost_reason = data.lost_reason;
-    if (data.notes !== undefined) updateData.notes = data.notes;
-    if (data.tags !== undefined) updateData.tags = data.tags;
+    if (cleanData.title !== undefined) updateData.title = cleanData.title;
+    if (cleanData.contact_id !== undefined) updateData.contact_id = cleanData.contact_id;
+    if (cleanData.company_id !== undefined) updateData.company_id = cleanData.company_id;
+    if (cleanData.owner_id !== undefined) updateData.owner_id = cleanData.owner_id;
+    if (cleanData.pipeline_id !== undefined) updateData.pipeline_id = cleanData.pipeline_id;
+    if (cleanData.stage_id !== undefined) updateData.stage_id = cleanData.stage_id;
+    if (cleanData.value !== undefined) updateData.value = cleanData.value;
+    if (cleanData.currency !== undefined) updateData.currency = cleanData.currency;
+    if (cleanData.probability !== undefined) updateData.probability = cleanData.probability;
+    if (cleanData.expected_close_date !== undefined) updateData.expected_close_date = cleanData.expected_close_date;
+    if (cleanData.actual_close_date !== undefined) updateData.actual_close_date = cleanData.actual_close_date;
+    if (cleanData.status !== undefined) updateData.status = cleanData.status;
+    if (cleanData.lost_reason !== undefined) updateData.lost_reason = cleanData.lost_reason;
+    if (cleanData.notes !== undefined) updateData.notes = cleanData.notes;
+    if (cleanData.tags !== undefined) updateData.tags = cleanData.tags;
 
     await deal.update(updateData);
 

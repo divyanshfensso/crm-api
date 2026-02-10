@@ -1,6 +1,9 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
+const { sanitizeFKFields } = require('../utils/helpers');
+
+const TASK_FK_FIELDS = ['assigned_to', 'contact_id', 'company_id', 'deal_id'];
 
 const taskService = {
   /**
@@ -140,8 +143,9 @@ const taskService = {
   create: async (data, userId) => {
     const { Task } = require('../models');
 
+    const cleanData = sanitizeFKFields(data, TASK_FK_FIELDS);
     const taskData = {
-      ...data,
+      ...cleanData,
       created_by: userId
     };
 
@@ -166,12 +170,14 @@ const taskService = {
       throw ApiError.notFound('Task not found');
     }
 
+    const cleanData = sanitizeFKFields(data, TASK_FK_FIELDS);
+
     // If status changed to 'completed', set completed_at
-    if (data.status === 'completed' && task.status !== 'completed') {
-      data.completed_at = new Date();
+    if (cleanData.status === 'completed' && task.status !== 'completed') {
+      cleanData.completed_at = new Date();
     }
 
-    await task.update(data);
+    await task.update(cleanData);
 
     // Fetch the updated task with relations
     return await taskService.getById(id);

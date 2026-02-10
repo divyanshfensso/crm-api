@@ -2,6 +2,7 @@ const { Op } = require('sequelize');
 const fs = require('fs');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
+const { sanitizeFKFields } = require('../utils/helpers');
 
 const documentService = {
   /**
@@ -134,16 +135,17 @@ const documentService = {
   create: async (fileData, metadata, userId) => {
     const { Document } = require('../models');
 
+    const cleanMeta = sanitizeFKFields(metadata, ['contact_id', 'company_id', 'deal_id']);
     const documentData = {
       file_name: fileData.filename,
       original_name: fileData.originalname,
       file_path: fileData.path,
       file_size: fileData.size,
       mime_type: fileData.mimetype,
-      description: metadata.description || null,
-      contact_id: metadata.contact_id || null,
-      company_id: metadata.company_id || null,
-      deal_id: metadata.deal_id || null,
+      description: cleanMeta.description || null,
+      contact_id: cleanMeta.contact_id,
+      company_id: cleanMeta.company_id,
+      deal_id: cleanMeta.deal_id,
       uploaded_by: userId
     };
 

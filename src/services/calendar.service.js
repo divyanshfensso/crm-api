@@ -1,6 +1,9 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
+const { sanitizeFKFields } = require('../utils/helpers');
+
+const CALENDAR_FK_FIELDS = ['contact_id', 'company_id', 'deal_id'];
 
 const calendarService = {
   /**
@@ -138,8 +141,9 @@ const calendarService = {
   create: async (data, userId) => {
     const { CalendarEvent } = require('../models');
 
+    const cleanData = sanitizeFKFields(data, CALENDAR_FK_FIELDS);
     const eventData = {
-      ...data,
+      ...cleanData,
       created_by: userId
     };
 
@@ -164,7 +168,8 @@ const calendarService = {
       throw ApiError.notFound('Calendar event not found');
     }
 
-    await event.update(data);
+    const cleanData = sanitizeFKFields(data, CALENDAR_FK_FIELDS);
+    await event.update(cleanData);
 
     // Fetch the updated event with relations
     return await calendarService.getById(id);

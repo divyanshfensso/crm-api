@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
+const { sanitizeFKFields } = require('../utils/helpers');
 
 const leadService = {
   /**
@@ -117,19 +118,20 @@ const leadService = {
   create: async (data, userId) => {
     const { Lead } = require('../models');
 
+    const cleanData = sanitizeFKFields(data, ['owner_id']);
     const leadData = {
-      first_name: data.first_name,
-      last_name: data.last_name,
-      email: data.email,
-      phone: data.phone,
-      company_name: data.company_name,
-      job_title: data.job_title,
-      lead_source: data.lead_source,
-      status: data.status || 'new',
-      score: data.score || 0,
-      notes: data.notes,
-      tags: data.tags || [],
-      owner_id: data.owner_id || userId,
+      first_name: cleanData.first_name,
+      last_name: cleanData.last_name,
+      email: cleanData.email,
+      phone: cleanData.phone,
+      company_name: cleanData.company_name,
+      job_title: cleanData.job_title,
+      lead_source: cleanData.lead_source,
+      status: cleanData.status || 'new',
+      score: cleanData.score || 0,
+      notes: cleanData.notes,
+      tags: cleanData.tags || [],
+      owner_id: cleanData.owner_id || userId,
       created_by: userId,
     };
 
@@ -148,19 +150,20 @@ const leadService = {
       throw ApiError.notFound('Lead not found');
     }
 
+    const cleanData = sanitizeFKFields(data, ['owner_id']);
     const updateData = {};
-    if (data.first_name !== undefined) updateData.first_name = data.first_name;
-    if (data.last_name !== undefined) updateData.last_name = data.last_name;
-    if (data.email !== undefined) updateData.email = data.email;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.company_name !== undefined) updateData.company_name = data.company_name;
-    if (data.job_title !== undefined) updateData.job_title = data.job_title;
-    if (data.lead_source !== undefined) updateData.lead_source = data.lead_source;
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.score !== undefined) updateData.score = data.score;
-    if (data.notes !== undefined) updateData.notes = data.notes;
-    if (data.tags !== undefined) updateData.tags = data.tags;
-    if (data.owner_id !== undefined) updateData.owner_id = data.owner_id;
+    if (cleanData.first_name !== undefined) updateData.first_name = cleanData.first_name;
+    if (cleanData.last_name !== undefined) updateData.last_name = cleanData.last_name;
+    if (cleanData.email !== undefined) updateData.email = cleanData.email;
+    if (cleanData.phone !== undefined) updateData.phone = cleanData.phone;
+    if (cleanData.company_name !== undefined) updateData.company_name = cleanData.company_name;
+    if (cleanData.job_title !== undefined) updateData.job_title = cleanData.job_title;
+    if (cleanData.lead_source !== undefined) updateData.lead_source = cleanData.lead_source;
+    if (cleanData.status !== undefined) updateData.status = cleanData.status;
+    if (cleanData.score !== undefined) updateData.score = cleanData.score;
+    if (cleanData.notes !== undefined) updateData.notes = cleanData.notes;
+    if (cleanData.tags !== undefined) updateData.tags = cleanData.tags;
+    if (cleanData.owner_id !== undefined) updateData.owner_id = cleanData.owner_id;
 
     await lead.update(updateData);
 
