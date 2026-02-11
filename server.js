@@ -24,7 +24,7 @@ app.use(cors(corsConfig));
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: process.env.NODE_ENV === 'development' ? 1000 : 100,
   message: { success: false, message: 'Too many requests, please try again later.' },
 });
 app.use('/api/', limiter);
@@ -65,7 +65,10 @@ const startServer = async () => {
     console.log('Database connected successfully.');
 
     if (process.env.NODE_ENV === 'development') {
-      await sequelize.sync({ alter: true });
+      // Only verify tables exist by default (fast startup)
+      // Use SYNC_ALTER=true npm start when you change model schemas
+      const syncOptions = process.env.SYNC_ALTER === 'true' ? { alter: true } : {};
+      await sequelize.sync(syncOptions);
       console.log('Database synced.');
     }
 

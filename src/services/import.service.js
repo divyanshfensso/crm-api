@@ -259,10 +259,19 @@ const importService = {
         // Apply column mapping: rename CSV columns to DB columns
         const mappedRow = {};
         for (const [csvCol, value] of Object.entries(row)) {
-          const dbCol = columnMapping[csvCol] || csvCol;
+          const dbCol = columnMapping[csvCol];
+          // Skip columns explicitly mapped to "" (Skip Column)
+          // If no mapping exists (undefined), fall back to CSV header name
+          const targetCol = dbCol !== undefined ? dbCol : csvCol;
+          if (!targetCol) continue; // Skip empty-mapped columns
           if (value !== undefined && value !== '') {
-            mappedRow[dbCol] = value;
+            mappedRow[targetCol] = value;
           }
+        }
+
+        // Set created_by from the import job creator
+        if (importJob.created_by) {
+          mappedRow.created_by = importJob.created_by;
         }
 
         const rowIndex = processedRows + 1;

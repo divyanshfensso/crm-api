@@ -30,19 +30,30 @@ const errorHandler = (err, req, res, next) => {
 
   // Handle Sequelize Unique Constraint Errors
   if (err.name === 'SequelizeUniqueConstraintError') {
+    const fieldLabels = {
+      email: 'Email', name: 'Name', phone: 'Phone', username: 'Username',
+      gstin: 'GSTIN', pan_number: 'PAN number', title: 'Title',
+    };
     const errors = err.errors.map(e => ({
       field: e.path,
-      message: `${e.path} must be unique`,
+      message: `${fieldLabels[e.path] || e.path} already exists. Please use a different value.`,
       value: e.value
     }));
-    error = ApiError.conflict('Resource already exists', errors);
+    const firstLabel = err.errors[0] ? (fieldLabels[err.errors[0].path] || err.errors[0].path) : 'Value';
+    error = ApiError.conflict(`${firstLabel} already exists. Please use a different value.`, errors);
   }
 
   // Handle Sequelize Foreign Key Constraint Errors
   if (err.name === 'SequelizeForeignKeyConstraintError') {
-    const fkField = err.fields ? err.fields.join(', ') : 'unknown';
-    const fkTable = err.table || 'unknown';
-    const fkIndex = err.index || 'unknown';
+    const fieldLabels = {
+      company_id: 'company', contact_id: 'contact', deal_id: 'deal',
+      quote_id: 'quote', pipeline_id: 'pipeline', stage_id: 'pipeline stage',
+      owner_id: 'user', assigned_to: 'user', created_by: 'user',
+      parent_company_id: 'parent company', lead_id: 'lead',
+    };
+    const fkField = err.fields ? err.fields[0] : null;
+    const label = (fkField && fieldLabels[fkField]) || 'referenced record';
+
     console.error('FK Constraint Error Details:', {
       fields: err.fields,
       table: err.table,
@@ -51,7 +62,7 @@ const errorHandler = (err, req, res, next) => {
       parent: err.parent ? err.parent.message : 'N/A'
     });
     error = ApiError.badRequest(
-      `Invalid reference: field '${fkField}' references table '${fkTable}' (index: ${fkIndex})`
+      `Please select a valid ${label}. The selected ${label} does not exist.`
     );
   }
 

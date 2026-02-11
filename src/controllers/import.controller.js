@@ -75,7 +75,7 @@ const importController = {
    * POST /api/imports/:id/mapping
    */
   mapColumns: asyncHandler(async (req, res) => {
-    const importJob = await importService.mapColumns(req.params.id, req.body.mapping);
+    const importJob = await importService.mapColumns(req.params.id, req.body.column_mapping);
     res.json(ApiResponse.success('Column mapping saved successfully', { importJob }));
   }),
 
