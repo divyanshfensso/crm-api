@@ -2,6 +2,7 @@ const emailCampaignService = require('../services/email-campaign.service');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const ApiResponse = require('../utils/apiResponse');
+const ApiError = require('../utils/apiError');
 
 const emailCampaignController = {
   /**
@@ -33,6 +34,14 @@ const emailCampaignController = {
    * POST /api/email-campaigns
    */
   create: asyncHandler(async (req, res) => {
+    // Map frontend target_type/filters to backend audience_filter format
+    if (req.body.target_type || req.body.filters) {
+      req.body.audience_filter = {
+        entity: req.body.target_type || 'contacts',
+        conditions: req.body.filters || []
+      };
+    }
+
     const campaign = await emailCampaignService.create(req.body, req.user.id);
 
     await createAuditLog(
@@ -53,6 +62,14 @@ const emailCampaignController = {
    * PUT /api/email-campaigns/:id
    */
   update: asyncHandler(async (req, res) => {
+    // Map frontend target_type/filters to backend audience_filter format
+    if (req.body.target_type || req.body.filters) {
+      req.body.audience_filter = {
+        entity: req.body.target_type || 'contacts',
+        conditions: req.body.filters || []
+      };
+    }
+
     const campaign = await emailCampaignService.update(req.params.id, req.body);
 
     await createAuditLog(
@@ -93,6 +110,24 @@ const emailCampaignController = {
    * POST /api/email-campaigns/:id/audience
    */
   buildAudience: asyncHandler(async (req, res) => {
+    const { target_type, filters } = req.body;
+    const { EmailCampaign } = require('../models');
+
+    const campaign = await EmailCampaign.findByPk(req.params.id);
+    if (!campaign) {
+      throw ApiError.notFound('Campaign not found');
+    }
+
+    // Save audience_filter from request body before building
+    if (target_type || filters) {
+      await campaign.update({
+        audience_filter: {
+          entity: target_type || 'contacts',
+          conditions: filters || []
+        }
+      });
+    }
+
     const recipientCount = await emailCampaignService.buildAudience(req.params.id);
     res.json(ApiResponse.success('Audience built successfully', { recipients_count: recipientCount }));
   }),
