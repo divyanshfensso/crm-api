@@ -18,6 +18,7 @@ module.exports = (sequelize, DataTypes) => {
     file_size: { type: DataTypes.INTEGER, allowNull: false },
     mime_type: { type: DataTypes.STRING(100), allowNull: false },
     description: { type: DataTypes.STRING(500), allowNull: true },
+    folder: { type: DataTypes.STRING(100), allowNull: true, defaultValue: null },
     contact_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'contacts', key: 'id' } },
     company_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'companies', key: 'id' } },
     deal_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'deals', key: 'id' } },
@@ -28,7 +29,7 @@ module.exports = (sequelize, DataTypes) => {
     indexes: [
       { fields: ['contact_id'] }, { fields: ['company_id'] },
       { fields: ['deal_id'] }, { fields: ['uploaded_by'] },
-      { fields: ['created_at'] },
+      { fields: ['created_at'] }, { fields: ['folder'] },
     ]
   });
 

@@ -140,7 +140,9 @@ const calendarService = {
    */
   create: async (data, userId) => {
     const { CalendarEvent } = require('../models');
+    const { sendEventInvitations } = require('../utils/calendarInvitation');
 
+    const sendInvitations = data.send_invitations !== false;
     const cleanData = sanitizeFKFields(data, CALENDAR_FK_FIELDS);
     const eventData = {
       ...cleanData,
@@ -150,7 +152,16 @@ const calendarService = {
     const event = await CalendarEvent.create(eventData);
 
     // Fetch the created event with relations
-    return await calendarService.getById(event.id);
+    const fullEvent = await calendarService.getById(event.id);
+
+    // Send invitations asynchronously (do not block response)
+    if (sendInvitations && fullEvent.attendees && fullEvent.attendees.length > 0) {
+      sendEventInvitations(fullEvent, userId, false).catch((err) => {
+        console.error('Failed to send calendar invitations:', err);
+      });
+    }
+
+    return fullEvent;
   },
 
   /**
@@ -161,6 +172,7 @@ const calendarService = {
    */
   update: async (id, data) => {
     const { CalendarEvent } = require('../models');
+    const { sendEventInvitations } = require('../utils/calendarInvitation');
 
     const event = await CalendarEvent.findByPk(id);
 
@@ -168,11 +180,21 @@ const calendarService = {
       throw ApiError.notFound('Calendar event not found');
     }
 
+    const sendInvitations = data.send_invitations !== false;
     const cleanData = sanitizeFKFields(data, CALENDAR_FK_FIELDS);
     await event.update(cleanData);
 
     // Fetch the updated event with relations
-    return await calendarService.getById(id);
+    const fullEvent = await calendarService.getById(id);
+
+    // Send updated invitations asynchronously
+    if (sendInvitations && fullEvent.attendees && fullEvent.attendees.length > 0) {
+      sendEventInvitations(fullEvent, event.created_by, true).catch((err) => {
+        console.error('Failed to send updated calendar invitations:', err);
+      });
+    }
+
+    return fullEvent;
   },
 
   /**

@@ -102,7 +102,7 @@ const taskController = {
    * GET /api/tasks/board
    */
   getByStatus: asyncHandler(async (req, res) => {
-    const board = await taskService.getByStatus();
+    const board = await taskService.getByStatus(req.query, req.user.id, req.userRoles);
     res.json(ApiResponse.success('Task board retrieved successfully', { board }));
   })
 };

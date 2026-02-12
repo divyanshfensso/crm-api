@@ -16,6 +16,86 @@ const modelMap = {
   payments: 'Payment'
 };
 
+/**
+ * Get association includes for a given entity type.
+ * Returns Sequelize include options to eager-load related names.
+ */
+function getEntityIncludes(entityType, db) {
+  const includes = {
+    contacts: [
+      { model: db.Company, as: 'company', attributes: ['name'] },
+      { model: db.User, as: 'owner', attributes: ['first_name', 'last_name'] },
+    ],
+    deals: [
+      { model: db.Contact, as: 'contact', attributes: ['first_name', 'last_name', 'email'] },
+      { model: db.Company, as: 'company', attributes: ['name'] },
+      { model: db.PipelineStage, as: 'stage', attributes: ['name'] },
+      { model: db.User, as: 'owner', attributes: ['first_name', 'last_name'] },
+    ],
+    leads: [
+      { model: db.User, as: 'owner', attributes: ['first_name', 'last_name'] },
+    ],
+    companies: [
+      { model: db.User, as: 'owner', attributes: ['first_name', 'last_name'] },
+    ],
+    activities: [
+      { model: db.User, as: 'user', attributes: ['first_name', 'last_name'] },
+    ],
+    tasks: [
+      { model: db.User, as: 'assignee', attributes: ['first_name', 'last_name'] },
+    ],
+  };
+  return includes[entityType] || [];
+}
+
+/**
+ * Flatten nested association objects into human-readable columns.
+ * E.g., { company: { name: 'Acme' } } → { company_name: 'Acme' }
+ */
+function flattenRecord(record) {
+  const flat = { ...record };
+
+  if (flat.contact && typeof flat.contact === 'object') {
+    flat.contact_name = `${flat.contact.first_name || ''} ${flat.contact.last_name || ''}`.trim();
+    flat.contact_email = flat.contact.email || '';
+    delete flat.contact;
+  }
+
+  if (flat.company && typeof flat.company === 'object') {
+    flat.company_name = flat.company.name || '';
+    delete flat.company;
+  }
+
+  if (flat.stage && typeof flat.stage === 'object') {
+    flat.stage_name = flat.stage.name || '';
+    delete flat.stage;
+  }
+
+  if (flat.owner && typeof flat.owner === 'object') {
+    flat.owner_name = `${flat.owner.first_name || ''} ${flat.owner.last_name || ''}`.trim();
+    delete flat.owner;
+  }
+
+  if (flat.user && typeof flat.user === 'object') {
+    flat.user_name = `${flat.user.first_name || ''} ${flat.user.last_name || ''}`.trim();
+    delete flat.user;
+  }
+
+  if (flat.assignee && typeof flat.assignee === 'object') {
+    flat.assignee_name = `${flat.assignee.first_name || ''} ${flat.assignee.last_name || ''}`.trim();
+    delete flat.assignee;
+  }
+
+  // Remove nested objects that may remain (e.g., pipeline, creator)
+  for (const key of Object.keys(flat)) {
+    if (flat[key] && typeof flat[key] === 'object' && !Array.isArray(flat[key]) && !(flat[key] instanceof Date)) {
+      delete flat[key];
+    }
+  }
+
+  return flat;
+}
+
 const dataExportService = {
   /**
    * Create a new data export request
@@ -152,10 +232,14 @@ const dataExportService = {
           where = { created_by: exportRecord.user_id };
         }
 
-        const records = await Model.findAll({ where });
-        allData[entityType] = records.map((record) =>
-          record.toJSON ? record.toJSON() : record
-        );
+        // Include associations for human-readable names
+        const includes = getEntityIncludes(entityType, db);
+
+        const records = await Model.findAll({ where, include: includes });
+        allData[entityType] = records.map((record) => {
+          const json = record.toJSON ? record.toJSON() : record;
+          return flattenRecord(json);
+        });
       }
 
       // Ensure exports directory exists

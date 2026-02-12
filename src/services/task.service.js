@@ -204,24 +204,70 @@ const taskService = {
 
   /**
    * Get tasks grouped by status for kanban board
+   * @param {number} userId - Current user ID
+   * @param {string[]} userRoles - Current user roles
    * @returns {Promise<Object>} Tasks grouped by status
    */
-  getByStatus: async () => {
-    const { Task, User } = require('../models');
+  getByStatus: async (query, userId, userRoles) => {
+    const { Task, User, Contact, Company, Deal } = require('../models');
 
     const statuses = ['pending', 'in_progress', 'completed', 'cancelled'];
     const priorityOrder = ['urgent', 'high', 'medium', 'low'];
+    const { search, priority, assigned_to } = query || {};
+
+    // Role-based filtering: Sales Reps see only their assigned tasks
+    const baseWhere = {};
+    const isSalesRep = userRoles && userRoles.includes('Sales Rep');
+    const isPrivileged = userRoles && (
+      userRoles.includes('Super Admin') ||
+      userRoles.includes('Admin') ||
+      userRoles.includes('Manager')
+    );
+    if (isSalesRep && !isPrivileged) {
+      baseWhere.assigned_to = userId;
+    }
+
+    // Apply search filter
+    if (search) {
+      const searchCondition = buildSearchCondition(search, ['title']);
+      Object.assign(baseWhere, searchCondition);
+    }
+
+    // Apply priority filter
+    if (priority) {
+      baseWhere.priority = priority;
+    }
+
+    // Apply assigned_to filter (only if not already restricted by role)
+    if (assigned_to && !baseWhere.assigned_to) {
+      baseWhere.assigned_to = assigned_to;
+    }
 
     const board = {};
 
     for (const status of statuses) {
       const tasks = await Task.findAll({
-        where: { status },
+        where: { ...baseWhere, status },
         include: [
           {
             model: User,
             as: 'assignee',
             attributes: ['id', 'first_name', 'last_name']
+          },
+          {
+            model: Contact,
+            as: 'contact',
+            attributes: ['id', 'first_name', 'last_name']
+          },
+          {
+            model: Company,
+            as: 'company',
+            attributes: ['id', 'name']
+          },
+          {
+            model: Deal,
+            as: 'deal',
+            attributes: ['id', 'title']
           }
         ],
         order: [

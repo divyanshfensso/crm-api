@@ -66,6 +66,25 @@ const documentController = {
   }),
 
   /**
+   * Get distinct folder names
+   * GET /api/documents/folders
+   */
+  getFolders: asyncHandler(async (req, res) => {
+    const folders = await documentService.getFolders();
+    res.json(ApiResponse.success('Folders retrieved successfully', { folders }));
+  }),
+
+  /**
+   * Move document to a folder
+   * PUT /api/documents/:id/folder
+   */
+  updateFolder: asyncHandler(async (req, res) => {
+    const { folder } = req.body;
+    const document = await documentService.updateFolder(req.params.id, folder);
+    res.json(ApiResponse.success('Document moved successfully', { document }));
+  }),
+
+  /**
    * Delete a document (soft delete + remove file)
    * DELETE /api/documents/:id
    */

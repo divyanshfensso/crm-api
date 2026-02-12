@@ -86,6 +86,30 @@ const emailTemplateController = {
     );
 
     res.json(ApiResponse.success('Email template deleted successfully', result));
+  }),
+
+  /**
+   * Send an email using a template
+   * POST /api/email-templates/:id/send
+   */
+  send: asyncHandler(async (req, res) => {
+    const result = await emailTemplateService.sendEmail(
+      req.params.id,
+      req.body,
+      req.user.id
+    );
+
+    await createAuditLog(
+      req.user.id,
+      'SEND',
+      'EMAIL_TEMPLATE',
+      parseInt(req.params.id),
+      null,
+      { recipient_email: req.body.recipient_email },
+      req
+    );
+
+    res.json(ApiResponse.success('Email sent successfully', result));
   })
 };
 

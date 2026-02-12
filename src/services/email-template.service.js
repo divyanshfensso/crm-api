@@ -2,6 +2,16 @@ const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
 
+/**
+ * Replace {{variable}} placeholders in text with provided values
+ */
+const replaceVariables = (text, variables) => {
+  if (!text || !variables) return text;
+  return text.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+    return variables[key] !== undefined ? variables[key] : match;
+  });
+};
+
 const emailTemplateService = {
   /**
    * Get all email templates with pagination, search, and filters
@@ -147,6 +157,110 @@ const emailTemplateService = {
     await template.destroy();
 
     return { id: template.id };
+  },
+
+  /**
+   * Send an email using a template
+   * @param {number} templateId - Email template ID
+   * @param {Object} data - Send data (recipient_email, recipient_name, cc, variables)
+   * @param {number} userId - Current user ID
+   * @returns {Promise<Object>} Send result with email log
+   */
+  sendEmail: async (templateId, data, userId) => {
+    const { EmailTemplate, Setting, EmailLog } = require('../models');
+    const { recipient_email, recipient_name, cc, variables } = data;
+
+    if (!recipient_email) {
+      throw ApiError.badRequest('Recipient email is required');
+    }
+
+    // Fetch template
+    const template = await EmailTemplate.findByPk(templateId);
+    if (!template) {
+      throw ApiError.notFound('Email template not found');
+    }
+    if (!template.is_active) {
+      throw ApiError.badRequest('Cannot send from an inactive template');
+    }
+
+    // Fetch SMTP settings
+    const smtpKeys = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass'];
+    const smtpSettings = await Setting.findAll({
+      where: { setting_key: { [Op.in]: smtpKeys } },
+      raw: true,
+    });
+
+    const smtpConfig = {};
+    for (const setting of smtpSettings) {
+      smtpConfig[setting.setting_key] = setting.setting_value;
+    }
+
+    // Validate SMTP configuration
+    for (const key of smtpKeys) {
+      if (!smtpConfig[key]) {
+        throw ApiError.badRequest(`SMTP setting '${key}' is not configured. Please configure email settings first.`);
+      }
+    }
+
+    // Create nodemailer transporter
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.smtp_host,
+      port: parseInt(smtpConfig.smtp_port, 10),
+      secure: parseInt(smtpConfig.smtp_port, 10) === 465,
+      auth: {
+        user: smtpConfig.smtp_user,
+        pass: smtpConfig.smtp_pass,
+      },
+    });
+
+    // Replace variables in subject and body
+    const mergedSubject = replaceVariables(template.subject, variables);
+    const mergedBody = replaceVariables(template.body_html, variables);
+
+    // Build mail options
+    const mailOptions = {
+      from: smtpConfig.smtp_user,
+      to: recipient_email,
+      subject: mergedSubject,
+      html: mergedBody,
+    };
+
+    if (cc) {
+      mailOptions.cc = cc;
+    }
+
+    // Send email and create log
+    try {
+      await transporter.sendMail(mailOptions);
+
+      const emailLog = await EmailLog.create({
+        template_id: templateId,
+        recipient_email,
+        recipient_name: recipient_name || null,
+        subject: mergedSubject,
+        body: mergedBody,
+        status: 'sent',
+        sent_at: new Date(),
+        sent_by: userId,
+      });
+
+      return { emailLog };
+    } catch (err) {
+      // Log the failed attempt
+      const emailLog = await EmailLog.create({
+        template_id: templateId,
+        recipient_email,
+        recipient_name: recipient_name || null,
+        subject: mergedSubject,
+        body: mergedBody,
+        status: 'failed',
+        error_message: err.message,
+        sent_by: userId,
+      });
+
+      throw ApiError.internal(`Failed to send email: ${err.message}`);
+    }
   }
 };
 

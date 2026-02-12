@@ -7,6 +7,9 @@ const { checkPermission } = require('../middleware/rbac');
 // GET / - Get all email templates
 router.get('/', auth, checkPermission('email_templates', 'read'), emailTemplateController.getAll);
 
+// POST /:id/send - Send email using template
+router.post('/:id/send', auth, checkPermission('email_templates', 'create'), emailTemplateController.send);
+
 // GET /:id - Get email template by ID
 router.get('/:id', auth, checkPermission('email_templates', 'read'), emailTemplateController.getById);
 

@@ -13,7 +13,7 @@ const documentService = {
   getAll: async (query) => {
     const { Document, User, Contact, Company, Deal } = require('../models');
     const { page, limit, offset } = getPagination(query);
-    const { search, contact_id, company_id, deal_id, mime_type } = query;
+    const { search, contact_id, company_id, deal_id, mime_type, folder } = query;
     const order = getSorting(query, 'created_at', 'DESC');
 
     const where = {};
@@ -42,6 +42,15 @@ const documentService = {
     // Filter by mime type
     if (mime_type) {
       where.mime_type = mime_type;
+    }
+
+    // Filter by folder
+    if (folder) {
+      if (folder === '__unfiled__') {
+        where.folder = { [Op.is]: null };
+      } else {
+        where.folder = folder;
+      }
     }
 
     const { count, rows } = await Document.findAndCountAll({
@@ -143,6 +152,7 @@ const documentService = {
       file_size: fileData.size,
       mime_type: fileData.mimetype,
       description: cleanMeta.description || null,
+      folder: metadata.folder || null,
       contact_id: cleanMeta.contact_id,
       company_id: cleanMeta.company_id,
       deal_id: cleanMeta.deal_id,
@@ -229,7 +239,48 @@ const documentService = {
     });
 
     return documents;
-  }
+  },
+
+  /**
+   * Get distinct folder names
+   * @returns {Promise<Array<string>>} Folder names
+   */
+  getFolders: async () => {
+    const { Document, sequelize } = require('../models');
+
+    const results = await Document.findAll({
+      attributes: [
+        [sequelize.fn('DISTINCT', sequelize.col('folder')), 'folder'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count'],
+      ],
+      where: {
+        folder: { [Op.not]: null },
+      },
+      group: ['folder'],
+      order: [['folder', 'ASC']],
+      raw: true,
+    });
+
+    return results.map((r) => ({ name: r.folder, count: parseInt(r.count) }));
+  },
+
+  /**
+   * Update a document's folder
+   * @param {number} id - Document ID
+   * @param {string|null} folder - Folder name (null to unfile)
+   * @returns {Promise<Object>} Updated document
+   */
+  updateFolder: async (id, folder) => {
+    const { Document } = require('../models');
+
+    const document = await Document.findByPk(id);
+    if (!document) {
+      throw ApiError.notFound('Document not found');
+    }
+
+    await document.update({ folder: folder || null });
+    return documentService.getById(id);
+  },
 };
 
 module.exports = documentService;

@@ -575,8 +575,11 @@ const createCalendarEventSchema = Joi.object({
   location: Joi.string().max(255).allow('', null).optional(),
   attendees: Joi.array().items(Joi.object({
     name: Joi.string().required(),
-    email: Joi.string().email().allow('').optional(),
+    email: Joi.string().email().allow('', null).optional(),
+    type: Joi.string().valid('contact', 'user').optional(),
+    id: Joi.number().integer().positive().allow(null).optional(),
   })).optional(),
+  send_invitations: Joi.boolean().optional(),
   contact_id: Joi.number().integer().positive().allow(null).optional(),
   company_id: Joi.number().integer().positive().allow(null).optional(),
   deal_id: Joi.number().integer().positive().allow(null).optional(),
