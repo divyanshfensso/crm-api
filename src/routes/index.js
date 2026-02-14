@@ -61,8 +61,16 @@ router.use('/webhooks', webhookRoutes);
 router.use('/knowledge-base', knowledgeBaseRoutes);
 router.use('/workflows', workflowRoutes);
 
-// Phase 5 routes (Integrations)
+// Phase 5 routes
+const forecastRoutes = require('./forecast.routes');
 const googleIntegrationRoutes = require('./google-integration.routes');
+const microsoftIntegrationRoutes = require('./microsoft-integration.routes');
+router.use('/forecast', forecastRoutes);
 router.use('/integrations/google', googleIntegrationRoutes);
+router.use('/integrations/microsoft', microsoftIntegrationRoutes);
+
+// Phase 6 — AI routes
+const aiRoutes = require('./ai.routes');
+router.use('/ai', aiRoutes);
 
 module.exports = router;

@@ -10,18 +10,26 @@ For code blocks, use <pre><code class="language-{lang}"> syntax.`;
 
 /**
  * Get configured Gemini model instance
+ * Loads API key from Settings table first, falls back to .env
  */
-const getModel = () => {
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
+const getModel = async () => {
+  const { Setting } = require('../models');
+
+  const setting = await Setting.findOne({ where: { setting_key: 'ai.api_key' } });
+  const apiKey = setting?.setting_value || process.env.GOOGLE_AI_API_KEY;
+
   if (!apiKey) {
     throw ApiError.badRequest(
-      'Google AI API key is not configured. Please set GOOGLE_AI_API_KEY in your environment variables.'
+      'Google AI API key is not configured. Go to Settings > General to add your Gemini API key.'
     );
   }
 
+  const modelSetting = await Setting.findOne({ where: { setting_key: 'ai.model' } });
+  const modelName = modelSetting?.setting_value || 'gemini-2.0-flash';
+
   const genAI = new GoogleGenerativeAI(apiKey);
   return genAI.getGenerativeModel({
-    model: 'gemini-2.0-flash',
+    model: modelName,
     systemInstruction: SYSTEM_INSTRUCTION,
   });
 };
@@ -45,7 +53,7 @@ const aiGenerationService = {
    */
   generateArticle: async (topic, tone = 'professional') => {
     try {
-      const model = getModel();
+      const model = await getModel();
 
       const prompt = `Write a comprehensive knowledge base article about: "${topic}"
 
@@ -101,7 +109,7 @@ Make the content detailed (at least 800 words) with multiple sections, examples,
    */
   enhanceContent: async (content, instructions = 'Improve grammar, structure, and clarity') => {
     try {
-      const model = getModel();
+      const model = await getModel();
 
       const prompt = `Enhance the following knowledge base article content based on these instructions: "${instructions}"
 
@@ -131,7 +139,7 @@ Return ONLY the improved HTML content. Keep the same structure but enhance the w
    */
   appendContent: async (existingContent, instructions) => {
     try {
-      const model = getModel();
+      const model = await getModel();
 
       const prompt = `The following is an existing knowledge base article:
 
@@ -162,7 +170,7 @@ Return ONLY the new HTML content that should be appended. Do not repeat existing
    */
   suggestWorkflowSteps: async (description, entityType = 'deal') => {
     try {
-      const model = getModel();
+      const model = await getModel();
 
       const prompt = `You are designing automation workflow steps for a CRM system.
 
@@ -212,7 +220,7 @@ Generate 2-6 practical steps that accomplish the user's goal.`;
    */
   suggestRolePermissions: async (roleName, description = '') => {
     try {
-      const model = getModel();
+      const model = await getModel();
 
       const prompt = `You are an RBAC expert for a CRM system. Suggest appropriate permissions for a role.
 

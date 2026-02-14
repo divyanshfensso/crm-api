@@ -93,6 +93,10 @@ module.exports = (sequelize, DataTypes) => {
           max: { args: [100], msg: 'Score must be between 0 and 100' }
         }
       },
+      score_reasoning: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
       converted: {
         type: DataTypes.BOOLEAN,
         allowNull: false,

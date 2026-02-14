@@ -171,6 +171,26 @@ const calendarService = {
       }
     }
 
+    // Outlook Calendar sync
+    if (data.sync_to_outlook) {
+      try {
+        const microsoftService = require('./microsoft.service');
+        const addTeamsMeeting = data.add_teams_meeting === true;
+        const outlookResult = await microsoftService.createOutlookEvent(userId, data, addTeamsMeeting);
+        await event.update({
+          outlook_event_id: outlookResult.outlookEventId,
+          teams_meeting_link: outlookResult.teamsMeetingLink,
+          sync_to_outlook: true,
+        });
+      } catch (outlookErr) {
+        console.error('Outlook Calendar sync failed during create:', outlookErr.message);
+        if (outlookErr.response?.data) {
+          console.error('Outlook API error details:', JSON.stringify(outlookErr.response.data));
+        }
+        await event.update({ sync_to_outlook: true });
+      }
+    }
+
     // Fetch the created event with relations
     const fullEvent = await calendarService.getById(event.id);
 
@@ -233,6 +253,35 @@ const calendarService = {
       }
     }
 
+    // Outlook Calendar sync
+    const shouldSyncOutlook = data.sync_to_outlook !== undefined ? data.sync_to_outlook : event.sync_to_outlook;
+    if (shouldSyncOutlook) {
+      try {
+        const microsoftService = require('./microsoft.service');
+        if (event.outlook_event_id) {
+          const addTeamsMeeting = data.add_teams_meeting === true && !event.teams_meeting_link;
+          const outlookResult = await microsoftService.updateOutlookEvent(
+            event.created_by, event.outlook_event_id, { ...event.toJSON(), ...cleanData }, addTeamsMeeting
+          );
+          if (outlookResult.teamsMeetingLink && !event.teams_meeting_link) {
+            await event.update({ teams_meeting_link: outlookResult.teamsMeetingLink });
+          }
+        } else {
+          const addTeamsMeeting = data.add_teams_meeting === true;
+          const outlookResult = await microsoftService.createOutlookEvent(
+            event.created_by, { ...event.toJSON(), ...cleanData }, addTeamsMeeting
+          );
+          await event.update({
+            outlook_event_id: outlookResult.outlookEventId,
+            teams_meeting_link: outlookResult.teamsMeetingLink,
+            sync_to_outlook: true,
+          });
+        }
+      } catch (outlookErr) {
+        console.error('Outlook Calendar sync failed during update:', outlookErr.message);
+      }
+    }
+
     // Fetch the updated event with relations
     const fullEvent = await calendarService.getById(id);
 
@@ -267,6 +316,16 @@ const calendarService = {
         await googleService.deleteGoogleEvent(event.created_by, event.google_event_id);
       } catch (googleErr) {
         console.error('Google Calendar delete sync failed:', googleErr.message);
+      }
+    }
+
+    // Delete from Outlook Calendar if synced
+    if (event.sync_to_outlook && event.outlook_event_id) {
+      try {
+        const microsoftService = require('./microsoft.service');
+        await microsoftService.deleteOutlookEvent(event.created_by, event.outlook_event_id);
+      } catch (outlookErr) {
+        console.error('Outlook Calendar delete sync failed:', outlookErr.message);
       }
     }
 

@@ -27,8 +27,8 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       validate: {
         isIn: {
-          args: [['google']],
-          msg: 'Provider must be one of: google',
+          args: [['google', 'microsoft']],
+          msg: 'Provider must be one of: google, microsoft',
         },
       },
     },

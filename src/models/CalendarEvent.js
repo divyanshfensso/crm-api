@@ -26,6 +26,9 @@ module.exports = (sequelize, DataTypes) => {
     google_event_id: { type: DataTypes.STRING(255), allowNull: true },
     google_meet_link: { type: DataTypes.STRING(500), allowNull: true },
     sync_to_google: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    outlook_event_id: { type: DataTypes.STRING(255), allowNull: true },
+    teams_meeting_link: { type: DataTypes.STRING(500), allowNull: true },
+    sync_to_outlook: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   }, {
     sequelize, modelName: 'CalendarEvent', tableName: 'calendar_events',
     timestamps: true, underscored: true, paranoid: true,
@@ -34,6 +37,7 @@ module.exports = (sequelize, DataTypes) => {
       { fields: ['contact_id'] }, { fields: ['company_id'] },
       { fields: ['deal_id'] }, { fields: ['created_by'] },
       { fields: ['google_event_id'] },
+      { fields: ['outlook_event_id'] },
     ]
   });
 
