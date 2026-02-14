@@ -226,6 +226,7 @@ const dealService = {
     }
 
     const cleanData = sanitizeFKFields(data, DEAL_FK_FIELDS);
+    const oldStageId = deal.stage_id;
     const updateData = {};
     if (cleanData.title !== undefined) updateData.title = cleanData.title;
     if (cleanData.contact_id !== undefined) updateData.contact_id = cleanData.contact_id;
@@ -244,6 +245,23 @@ const dealService = {
     if (cleanData.tags !== undefined) updateData.tags = cleanData.tags;
 
     await deal.update(updateData);
+
+    // Emit notification if stage changed
+    if (updateData.stage_id && updateData.stage_id !== oldStageId && deal.owner_id) {
+      try {
+        const { emitNotification } = require('../utils/notificationEmitter');
+        const newStage = await PipelineStage.findByPk(updateData.stage_id);
+        await emitNotification('deal_stage_changed', deal.owner_id, {
+          title: 'Deal stage updated',
+          message: `Deal "${deal.title}" moved to ${newStage?.name || 'new stage'}.`,
+          related_module: 'deals',
+          related_id: deal.id,
+          priority: 'medium'
+        });
+      } catch (err) {
+        console.error('Deal notification error:', err.message);
+      }
+    }
 
     return await Deal.findByPk(id, {
       include: [

@@ -151,6 +151,23 @@ const taskService = {
 
     const task = await Task.create(taskData);
 
+    // Emit notification if task is assigned to someone else
+    if (taskData.assigned_to && taskData.assigned_to !== userId) {
+      try {
+        const { emitNotification } = require('../utils/notificationEmitter');
+        await emitNotification('task_assigned', taskData.assigned_to, {
+          title: 'New task assigned to you',
+          message: `You have been assigned: "${taskData.title}"`,
+          sender_id: userId,
+          related_module: 'tasks',
+          related_id: task.id,
+          priority: taskData.priority === 'urgent' ? 'high' : 'medium'
+        });
+      } catch (err) {
+        console.error('Task notification error:', err.message);
+      }
+    }
+
     // Fetch the created task with relations
     return await taskService.getById(task.id);
   },
@@ -177,7 +194,24 @@ const taskService = {
       cleanData.completed_at = new Date();
     }
 
+    const oldAssignee = task.assigned_to;
     await task.update(cleanData);
+
+    // Emit notification if assignee changed
+    if (cleanData.assigned_to && cleanData.assigned_to !== oldAssignee) {
+      try {
+        const { emitNotification } = require('../utils/notificationEmitter');
+        await emitNotification('task_assigned', cleanData.assigned_to, {
+          title: 'Task reassigned to you',
+          message: `You have been assigned: "${task.title}"`,
+          related_module: 'tasks',
+          related_id: task.id,
+          priority: task.priority === 'urgent' ? 'high' : 'medium'
+        });
+      } catch (err) {
+        console.error('Task notification error:', err.message);
+      }
+    }
 
     // Fetch the updated task with relations
     return await taskService.getById(id);

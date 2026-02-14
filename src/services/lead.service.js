@@ -136,6 +136,24 @@ const leadService = {
     };
 
     const lead = await Lead.create(leadData);
+
+    // Emit notification if lead assigned to someone else
+    if (leadData.owner_id && leadData.owner_id !== userId) {
+      try {
+        const { emitNotification } = require('../utils/notificationEmitter');
+        await emitNotification('lead_assigned', leadData.owner_id, {
+          title: 'New lead assigned to you',
+          message: `You have been assigned lead: "${leadData.first_name} ${leadData.last_name}"`,
+          sender_id: userId,
+          related_module: 'leads',
+          related_id: lead.id,
+          priority: 'medium'
+        });
+      } catch (err) {
+        console.error('Lead notification error:', err.message);
+      }
+    }
+
     return lead;
   },
 

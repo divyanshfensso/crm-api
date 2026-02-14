@@ -62,6 +62,9 @@ const WorkflowLog = require('./WorkflowLog')(sequelize, DataTypes);
 // Phase 5 models (Integrations)
 const UserIntegration = require('./UserIntegration')(sequelize, DataTypes);
 
+// Phase 6 models
+const Notification = require('./Notification')(sequelize, DataTypes);
+
 // Add models to db object
 db.User = User;
 db.Role = Role;
@@ -105,6 +108,7 @@ db.Workflow = Workflow;
 db.WorkflowStep = WorkflowStep;
 db.WorkflowLog = WorkflowLog;
 db.UserIntegration = UserIntegration;
+db.Notification = Notification;
 
 // Setup associations
 // Call associate method on each model if it exists

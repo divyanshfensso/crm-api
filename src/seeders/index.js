@@ -2,7 +2,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '../../.env') }
 
 const { sequelize, Role, Permission } = require('../models');
 
-const MODULES = ['users', 'roles', 'settings', 'contacts', 'leads', 'deals', 'companies', 'activities', 'dashboard', 'reports', 'tasks', 'documents', 'quotes', 'invoices', 'payments', 'calendar', 'email_templates', 'email_logs', 'data_exports', 'imports', 'email_campaigns', 'api_keys', 'webhooks', 'knowledge_base', 'workflows'];
+const MODULES = ['users', 'roles', 'settings', 'contacts', 'leads', 'deals', 'companies', 'activities', 'dashboard', 'reports', 'tasks', 'documents', 'quotes', 'invoices', 'payments', 'calendar', 'email_templates', 'email_logs', 'data_exports', 'imports', 'email_campaigns', 'api_keys', 'webhooks', 'knowledge_base', 'workflows', 'notifications'];
 const ACTIONS = ['create', 'read', 'update', 'delete', 'export', 'import'];
 
 const ROLES = [
@@ -43,6 +43,7 @@ const ROLE_PERMISSIONS = {
     webhooks: ['create', 'read', 'update', 'delete'],
     knowledge_base: ['create', 'read', 'update', 'delete'],
     workflows: ['create', 'read', 'update', 'delete'],
+    notifications: ['read', 'update', 'delete'],
   },
   'Manager': {
     users: ['read'],
@@ -68,6 +69,7 @@ const ROLE_PERMISSIONS = {
     email_campaigns: ['create', 'read', 'update'],
     knowledge_base: ['create', 'read', 'update', 'delete'],
     workflows: ['create', 'read'],
+    notifications: ['read', 'update'],
   },
   'Sales Rep': {
     contacts: ['create', 'read', 'update'],
@@ -86,6 +88,7 @@ const ROLE_PERMISSIONS = {
     email_templates: ['read'],
     imports: ['create', 'read'],
     knowledge_base: ['read'],
+    notifications: ['read', 'update'],
   },
   'Support Agent': {
     contacts: ['read', 'update'],
@@ -109,6 +112,7 @@ const ROLE_PERMISSIONS = {
     invoices: ['read'],
     calendar: ['read'],
     knowledge_base: ['read'],
+    notifications: ['read'],
   },
 };
 

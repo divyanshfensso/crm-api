@@ -14,6 +14,7 @@ const routes = require('./src/routes');
 const { errorHandler } = require('./src/middleware/errorHandler');
 const { setupCronJobs } = require('./src/services/workflow-cron.service');
 const { setupWebhookRetryCron } = require('./src/services/webhook-retry.cron');
+const { setupNotificationCron } = require('./src/services/notification-cron.service');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -79,6 +80,7 @@ const startServer = async () => {
     // Start cron jobs
     setupCronJobs();
     setupWebhookRetryCron();
+    setupNotificationCron();
 
     app.listen(PORT, () => {
       console.log(`Facilis CRM API running on port ${PORT}`);

@@ -73,4 +73,8 @@ router.use('/integrations/microsoft', microsoftIntegrationRoutes);
 const aiRoutes = require('./ai.routes');
 router.use('/ai', aiRoutes);
 
+// Notification routes
+const notificationRoutes = require('./notification.routes');
+router.use('/notifications', notificationRoutes);
+
 module.exports = router;
