@@ -3,6 +3,16 @@ const { createAuditLog } = require('../middleware/audit');
 const ApiResponse = require('../utils/apiResponse');
 
 const userController = {
+  create: async (req, res, next) => {
+    try {
+      const user = await userService.create(req.body);
+      await createAuditLog(req.user.id, 'create', 'users', user.id, null, req.body, req);
+      res.status(201).json(ApiResponse.created('User created successfully', { user }));
+    } catch (error) {
+      next(error);
+    }
+  },
+
   getAll: async (req, res, next) => {
     try {
       const result = await userService.getAll(req.query);

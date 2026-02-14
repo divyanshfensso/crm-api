@@ -30,6 +30,12 @@ class DashboardController {
     res.json(ApiResponse.success('Recent activities retrieved successfully', activities));
   });
 
+  getUpcomingEvents = asyncHandler(async (req, res) => {
+    const limit = req.query.limit || 5;
+    const events = await dashboardService.getUpcomingEvents(limit);
+    res.json(ApiResponse.success('Upcoming events retrieved successfully', events));
+  });
+
   getLeadSourceData = asyncHandler(async (req, res) => {
     const data = await dashboardService.getLeadSourceData();
 

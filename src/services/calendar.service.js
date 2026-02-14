@@ -151,6 +151,26 @@ const calendarService = {
 
     const event = await CalendarEvent.create(eventData);
 
+    // Google Calendar sync
+    if (data.sync_to_google) {
+      try {
+        const googleService = require('./google.service');
+        const addMeetLink = data.add_google_meet === true;
+        const googleResult = await googleService.createGoogleEvent(userId, data, addMeetLink);
+        await event.update({
+          google_event_id: googleResult.googleEventId,
+          google_meet_link: googleResult.googleMeetLink,
+          sync_to_google: true,
+        });
+      } catch (googleErr) {
+        console.error('Google Calendar sync failed during create:', googleErr.message);
+        if (googleErr.response?.data) {
+          console.error('Google API error details:', JSON.stringify(googleErr.response.data));
+        }
+        await event.update({ sync_to_google: true });
+      }
+    }
+
     // Fetch the created event with relations
     const fullEvent = await calendarService.getById(event.id);
 
@@ -184,6 +204,35 @@ const calendarService = {
     const cleanData = sanitizeFKFields(data, CALENDAR_FK_FIELDS);
     await event.update(cleanData);
 
+    // Google Calendar sync
+    const shouldSync = data.sync_to_google !== undefined ? data.sync_to_google : event.sync_to_google;
+    if (shouldSync) {
+      try {
+        const googleService = require('./google.service');
+        if (event.google_event_id) {
+          const addMeetLink = data.add_google_meet === true && !event.google_meet_link;
+          const googleResult = await googleService.updateGoogleEvent(
+            event.created_by, event.google_event_id, { ...event.toJSON(), ...cleanData }, addMeetLink
+          );
+          if (googleResult.googleMeetLink && !event.google_meet_link) {
+            await event.update({ google_meet_link: googleResult.googleMeetLink });
+          }
+        } else {
+          const addMeetLink = data.add_google_meet === true;
+          const googleResult = await googleService.createGoogleEvent(
+            event.created_by, { ...event.toJSON(), ...cleanData }, addMeetLink
+          );
+          await event.update({
+            google_event_id: googleResult.googleEventId,
+            google_meet_link: googleResult.googleMeetLink,
+            sync_to_google: true,
+          });
+        }
+      } catch (googleErr) {
+        console.error('Google Calendar sync failed during update:', googleErr.message);
+      }
+    }
+
     // Fetch the updated event with relations
     const fullEvent = await calendarService.getById(id);
 
@@ -209,6 +258,16 @@ const calendarService = {
 
     if (!event) {
       throw ApiError.notFound('Calendar event not found');
+    }
+
+    // Delete from Google Calendar if synced
+    if (event.sync_to_google && event.google_event_id) {
+      try {
+        const googleService = require('./google.service');
+        await googleService.deleteGoogleEvent(event.created_by, event.google_event_id);
+      } catch (googleErr) {
+        console.error('Google Calendar delete sync failed:', googleErr.message);
+      }
     }
 
     await event.destroy();

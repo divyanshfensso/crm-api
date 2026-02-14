@@ -259,6 +259,27 @@ class DashboardService {
     return activities;
   }
 
+  async getUpcomingEvents(limit = 5) {
+    const { CalendarEvent, User, Contact, Company, Deal } = require('../models');
+    const now = new Date();
+
+    const events = await CalendarEvent.findAll({
+      where: {
+        start_time: { [Op.gte]: now }
+      },
+      include: [
+        { model: User, as: 'creator', attributes: ['id', 'first_name', 'last_name'] },
+        { model: Contact, as: 'contact', attributes: ['id', 'first_name', 'last_name'] },
+        { model: Company, as: 'company', attributes: ['id', 'name'] },
+        { model: Deal, as: 'deal', attributes: ['id', 'title'] },
+      ],
+      order: [['start_time', 'ASC']],
+      limit: parseInt(limit),
+    });
+
+    return events;
+  }
+
   async getLeadSourceData() {
     const leadsBySource = await Lead.findAll({
       attributes: [

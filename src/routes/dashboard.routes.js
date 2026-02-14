@@ -33,6 +33,13 @@ router.get(
 );
 
 router.get(
+  '/events',
+  auth,
+  checkPermission('dashboard', 'read'),
+  dashboardController.getUpcomingEvents
+);
+
+router.get(
   '/lead-sources',
   auth,
   checkPermission('dashboard', 'read'),

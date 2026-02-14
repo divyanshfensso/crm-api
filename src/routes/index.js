@@ -61,4 +61,8 @@ router.use('/webhooks', webhookRoutes);
 router.use('/knowledge-base', knowledgeBaseRoutes);
 router.use('/workflows', workflowRoutes);
 
+// Phase 5 routes (Integrations)
+const googleIntegrationRoutes = require('./google-integration.routes');
+router.use('/integrations/google', googleIntegrationRoutes);
+
 module.exports = router;

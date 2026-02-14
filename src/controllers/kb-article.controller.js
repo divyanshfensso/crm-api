@@ -2,8 +2,21 @@ const kbArticleService = require('../services/kb-article.service');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const ApiResponse = require('../utils/apiResponse');
+const ApiError = require('../utils/apiError');
 
 const kbArticleController = {
+  /**
+   * Upload image for KB article editor
+   * POST /api/knowledge-base/articles/upload-image
+   */
+  uploadImage: asyncHandler(async (req, res) => {
+    if (!req.file) {
+      throw ApiError.badRequest('No image file uploaded');
+    }
+    const imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    res.json(ApiResponse.success('Image uploaded successfully', { url: imageUrl }));
+  }),
+
   /**
    * Get all articles with pagination, search, and filters
    * GET /api/knowledge-base/articles
@@ -130,6 +143,37 @@ const kbArticleController = {
       result.meta.limit,
       result.meta.total
     ));
+  }),
+  /**
+   * Toggle public sharing for an article
+   * POST /api/knowledge-base/articles/:id/toggle-public
+   */
+  togglePublic: asyncHandler(async (req, res) => {
+    const article = await kbArticleService.togglePublic(req.params.id);
+
+    await createAuditLog(
+      req.user.id,
+      'UPDATE',
+      'KNOWLEDGE_BASE',
+      parseInt(req.params.id),
+      null,
+      { is_public: article.is_public },
+      req
+    );
+
+    res.json(ApiResponse.success(
+      article.is_public ? 'Article is now publicly accessible' : 'Article is now private',
+      { article }
+    ));
+  }),
+
+  /**
+   * Get a public article by share token (no auth required)
+   * GET /api/knowledge-base/public/:shareToken
+   */
+  getByShareToken: asyncHandler(async (req, res) => {
+    const article = await kbArticleService.getByShareToken(req.params.shareToken);
+    res.json(ApiResponse.success('Public article retrieved successfully', { article }));
   }),
 };
 

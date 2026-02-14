@@ -13,6 +13,7 @@ const { sequelize } = require('./src/models');
 const routes = require('./src/routes');
 const { errorHandler } = require('./src/middleware/errorHandler');
 const { setupCronJobs } = require('./src/services/workflow-cron.service');
+const { setupWebhookRetryCron } = require('./src/services/webhook-retry.cron');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -35,7 +36,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Static file serving for uploads
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
 
 // Logging
 if (process.env.NODE_ENV === 'development') {
@@ -72,9 +76,9 @@ const startServer = async () => {
       console.log('Database synced.');
     }
 
-    // Start workflow cron jobs
+    // Start cron jobs
     setupCronJobs();
-    console.log('Workflow cron jobs initialized.');
+    setupWebhookRetryCron();
 
     app.listen(PORT, () => {
       console.log(`Facilis CRM API running on port ${PORT}`);

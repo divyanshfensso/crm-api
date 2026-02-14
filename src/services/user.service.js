@@ -1,8 +1,39 @@
 const { Op } = require('sequelize');
+const bcrypt = require('bcryptjs');
 const ApiError = require('../utils/apiError');
 const { getPagination } = require('../utils/pagination');
 
 const userService = {
+  create: async (data) => {
+    const { User, Role } = require('../models');
+
+    // Check email uniqueness
+    const existing = await User.findOne({ where: { email: data.email.toLowerCase().trim() } });
+    if (existing) {
+      throw ApiError.badRequest('Email already exists');
+    }
+
+    // Hash password
+    const password_hash = await bcrypt.hash(data.password, 10);
+
+    const user = await User.create({
+      first_name: data.firstName.trim(),
+      last_name: data.lastName.trim(),
+      email: data.email.toLowerCase().trim(),
+      phone: data.phone?.trim() || null,
+      password_hash,
+      status: 'active',
+    });
+
+    // Assign roles if provided
+    if (data.roleIds && data.roleIds.length > 0) {
+      const roles = await Role.findAll({ where: { id: data.roleIds } });
+      await user.setRoles(roles);
+    }
+
+    return user.toSafeObject();
+  },
+
   getAll: async (query) => {
     const { User, Role } = require('../models');
     const { page, limit, offset } = getPagination(query);

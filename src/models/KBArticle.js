@@ -19,6 +19,8 @@ module.exports = (sequelize, DataTypes) => {
     view_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
     author_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'users', key: 'id' } },
     published_at: { type: DataTypes.DATE, allowNull: true },
+    is_public: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    share_token: { type: DataTypes.STRING(64), allowNull: true, unique: true },
   }, {
     sequelize, modelName: 'KBArticle', tableName: 'kb_articles',
     timestamps: true, underscored: true, paranoid: true,

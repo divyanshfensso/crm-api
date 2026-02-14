@@ -4,6 +4,9 @@ const { auth } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/rbac');
 const workflowController = require('../controllers/workflow.controller');
 
+// POST /suggest-steps — AI suggest workflow steps (static route BEFORE :id)
+router.post('/suggest-steps', auth, checkPermission('workflows', 'create'), workflowController.suggestSteps);
+
 // GET / - Get all workflows
 router.get('/', auth, checkPermission('workflows', 'read'), workflowController.getAll);
 

@@ -68,7 +68,10 @@ const errorHandler = (err, req, res, next) => {
 
   // Handle Sequelize Database Errors
   if (err.name === 'SequelizeDatabaseError') {
-    error = ApiError.internal('Database error occurred');
+    const dbMsg = process.env.NODE_ENV === 'development'
+      ? `Database error: ${err.message}`
+      : 'Database error occurred';
+    error = ApiError.internal(dbMsg);
   }
 
   // Handle Sequelize Connection Errors

@@ -1,4 +1,5 @@
 const roleService = require('../services/role.service');
+const aiGenerationService = require('../services/ai-generation.service');
 const { createAuditLog } = require('../middleware/audit');
 const ApiResponse = require('../utils/apiResponse');
 
@@ -57,6 +58,35 @@ const roleController = {
       const role = await roleService.delete(req.params.id);
       await createAuditLog(req.user.id, 'delete', 'roles', parseInt(req.params.id), null, null, req);
       res.json(ApiResponse.success('Role deleted', { role }));
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  suggestPermissions: async (req, res, next) => {
+    try {
+      const { roleName, description } = req.body;
+      if (!roleName || roleName.trim().length < 2) {
+        return res.status(400).json(ApiResponse.error('Role name is required'));
+      }
+
+      const aiResult = await aiGenerationService.suggestRolePermissions(roleName.trim(), description);
+
+      // Convert permission strings to IDs
+      const { Permission } = require('../models');
+      const permissionIds = [];
+      for (const permStr of aiResult.permissions) {
+        const [module, action] = permStr.split(':');
+        if (module && action) {
+          const perm = await Permission.findOne({ where: { module, action } });
+          if (perm) permissionIds.push(perm.id);
+        }
+      }
+
+      res.json(ApiResponse.success('Permissions suggested successfully', {
+        permissionIds,
+        reasoning: aiResult.reasoning,
+      }));
     } catch (error) {
       next(error);
     }

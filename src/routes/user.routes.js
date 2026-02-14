@@ -4,8 +4,9 @@ const userController = require('../controllers/user.controller');
 const { auth } = require('../middleware/auth');
 const { checkPermission } = require('../middleware/rbac');
 const { validate } = require('../middleware/validate');
-const { updateUserSchema, paginationSchema } = require('../utils/validators');
+const { registerSchema, updateUserSchema, paginationSchema } = require('../utils/validators');
 
+router.post('/', auth, checkPermission('users', 'create'), validate(registerSchema), userController.create);
 router.get('/', auth, checkPermission('users', 'read'), validate(paginationSchema, 'query'), userController.getAll);
 router.get('/:id', auth, checkPermission('users', 'read'), userController.getById);
 router.put('/:id', auth, checkPermission('users', 'update'), validate(updateUserSchema), userController.update);

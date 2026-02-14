@@ -214,31 +214,48 @@ const reportService = {
       throw ApiError.badRequest(`Unsupported entity type: ${report.entity_type}`);
     }
 
+    // Get valid model attribute and column names
+    const attrKeys = Object.keys(Model.rawAttributes);
+    const colNames = Object.values(Model.rawAttributes).map(a => a.field).filter(Boolean);
+    const validAttributes = [...new Set([...attrKeys, ...colNames])];
+
     // Build query options
     const queryOptions = {};
 
-    // Build attributes from report.columns
+    // Build attributes from report.columns — filter to valid model columns only
     if (report.columns && Array.isArray(report.columns) && report.columns.length > 0) {
-      queryOptions.attributes = report.columns;
+      const validColumns = report.columns.filter(col => validAttributes.includes(col));
+      if (validColumns.length > 0) {
+        queryOptions.attributes = validColumns;
+      }
     }
 
-    // Build where from report.filters
-    const where = buildWhereFromFilters(report.filters);
-    if (Object.keys(where).length > 0) {
-      queryOptions.where = where;
+    // Build where from report.filters — filter to valid fields only
+    if (report.filters && Array.isArray(report.filters)) {
+      const validFilters = report.filters.filter(f => f.field && validAttributes.includes(f.field));
+      const where = buildWhereFromFilters(validFilters);
+      if (Object.keys(where).length > 0) {
+        queryOptions.where = where;
+      }
     }
 
-    // Build order from report.sorting
+    // Build order from report.sorting — filter to valid fields only
     if (report.sorting && Array.isArray(report.sorting) && report.sorting.length > 0) {
-      queryOptions.order = report.sorting.map((sort) => [
-        sort.field,
-        (sort.direction || 'ASC').toUpperCase()
-      ]);
+      const validSorting = report.sorting.filter(s => s.field && validAttributes.includes(s.field));
+      if (validSorting.length > 0) {
+        queryOptions.order = validSorting.map((sort) => [
+          sort.field,
+          (sort.direction || 'ASC').toUpperCase()
+        ]);
+      }
     }
 
-    // Build group from report.grouping
+    // Build group from report.grouping — filter to valid fields only
     if (report.grouping && Array.isArray(report.grouping) && report.grouping.length > 0) {
-      queryOptions.group = report.grouping;
+      const validGrouping = report.grouping.filter(g => validAttributes.includes(g));
+      if (validGrouping.length > 0) {
+        queryOptions.group = validGrouping;
+      }
     }
 
     // Apply pagination from params

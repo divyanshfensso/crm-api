@@ -1,9 +1,23 @@
 const workflowService = require('../services/workflow.service');
+const aiGenerationService = require('../services/ai-generation.service');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const ApiResponse = require('../utils/apiResponse');
 
 const workflowController = {
+  /**
+   * AI suggest workflow steps from description
+   * POST /api/workflows/suggest-steps
+   */
+  suggestSteps: asyncHandler(async (req, res) => {
+    const { description, entityType } = req.body;
+    if (!description || description.trim().length < 10) {
+      return res.status(400).json(ApiResponse.error('Description must be at least 10 characters'));
+    }
+    const steps = await aiGenerationService.suggestWorkflowSteps(description.trim(), entityType);
+    res.json(ApiResponse.success('Workflow steps suggested successfully', { steps }));
+  }),
+
   /**
    * Get all workflows with pagination, search, and filters
    * GET /api/workflows

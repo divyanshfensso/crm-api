@@ -59,6 +59,9 @@ const Workflow = require('./Workflow')(sequelize, DataTypes);
 const WorkflowStep = require('./WorkflowStep')(sequelize, DataTypes);
 const WorkflowLog = require('./WorkflowLog')(sequelize, DataTypes);
 
+// Phase 5 models (Integrations)
+const UserIntegration = require('./UserIntegration')(sequelize, DataTypes);
+
 // Add models to db object
 db.User = User;
 db.Role = Role;
@@ -101,6 +104,7 @@ db.ArticleFeedback = ArticleFeedback;
 db.Workflow = Workflow;
 db.WorkflowStep = WorkflowStep;
 db.WorkflowLog = WorkflowLog;
+db.UserIntegration = UserIntegration;
 
 // Setup associations
 // Call associate method on each model if it exists

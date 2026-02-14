@@ -7,6 +7,9 @@ const { checkPermission } = require('../middleware/rbac');
 // GET / - Get all calendar events
 router.get('/', auth, checkPermission('calendar', 'read'), calendarController.getAll);
 
+// GET /google-events - Pull Google Calendar events (static route before /:id)
+router.get('/google-events', auth, checkPermission('calendar', 'read'), calendarController.getGoogleEvents);
+
 // GET /:id - Get calendar event by ID
 router.get('/:id', auth, checkPermission('calendar', 'read'), calendarController.getById);
 

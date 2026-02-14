@@ -1,4 +1,5 @@
 const { Op } = require('sequelize');
+const crypto = require('crypto');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
 const { sanitizeFKFields } = require('../utils/helpers');
@@ -309,6 +310,69 @@ const kbArticleService = {
         totalPages: Math.ceil(count / limit),
       },
     };
+  },
+
+  /**
+   * Toggle public sharing for an article
+   * @param {number} id - Article ID
+   * @returns {Promise<Object>} Updated article
+   */
+  togglePublic: async (id) => {
+    const { KBArticle, KBCategory, User } = require('../models');
+
+    const article = await KBArticle.findByPk(id);
+    if (!article) {
+      throw ApiError.notFound('Article not found');
+    }
+
+    if (article.status !== 'published') {
+      throw ApiError.badRequest('Only published articles can be made public');
+    }
+
+    const newIsPublic = !article.is_public;
+    const updateData = { is_public: newIsPublic };
+
+    if (newIsPublic && !article.share_token) {
+      updateData.share_token = crypto.randomUUID();
+    }
+
+    await article.update(updateData);
+
+    return await KBArticle.findByPk(id, {
+      include: [
+        { model: KBCategory, as: 'category', attributes: ['id', 'name', 'slug'] },
+        { model: User, as: 'author', attributes: ['id', 'first_name', 'last_name'] },
+      ],
+    });
+  },
+
+  /**
+   * Get a public article by share token (no auth required)
+   * @param {string} shareToken - The share token
+   * @returns {Promise<Object>} Public article data
+   */
+  getByShareToken: async (shareToken) => {
+    const { KBArticle, KBCategory, User } = require('../models');
+
+    const article = await KBArticle.findOne({
+      where: {
+        share_token: shareToken,
+        is_public: true,
+        status: 'published',
+      },
+      include: [
+        { model: KBCategory, as: 'category', attributes: ['id', 'name', 'slug'] },
+        { model: User, as: 'author', attributes: ['id', 'first_name', 'last_name'] },
+      ],
+    });
+
+    if (!article) {
+      throw ApiError.notFound('Article not found or not publicly available');
+    }
+
+    await article.increment('view_count');
+
+    return article;
   },
 };
 

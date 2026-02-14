@@ -23,6 +23,9 @@ module.exports = (sequelize, DataTypes) => {
     company_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'companies', key: 'id' } },
     deal_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'deals', key: 'id' } },
     created_by: { type: DataTypes.INTEGER, allowNull: false, references: { model: 'users', key: 'id' } },
+    google_event_id: { type: DataTypes.STRING(255), allowNull: true },
+    google_meet_link: { type: DataTypes.STRING(500), allowNull: true },
+    sync_to_google: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   }, {
     sequelize, modelName: 'CalendarEvent', tableName: 'calendar_events',
     timestamps: true, underscored: true, paranoid: true,
@@ -30,6 +33,7 @@ module.exports = (sequelize, DataTypes) => {
       { fields: ['start_time'] }, { fields: ['end_time'] },
       { fields: ['contact_id'] }, { fields: ['company_id'] },
       { fields: ['deal_id'] }, { fields: ['created_by'] },
+      { fields: ['google_event_id'] },
     ]
   });
 

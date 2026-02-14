@@ -193,12 +193,17 @@ const webhookService = {
           response_body: typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
         });
       } catch (error) {
-        // Update delivery on failure
+        // Update delivery on failure with next_retry_at for automatic retry
+        const newAttempts = delivery.attempts + 1;
+        const nextRetryAt = newAttempts < 5
+          ? new Date(Date.now() + Math.pow(2, newAttempts) * 60 * 1000) // Exponential backoff: 2, 4, 8, 16 min
+          : null; // Give up after 5 attempts
         await delivery.update({
           status: 'failed',
           status_code: error.response ? error.response.status : null,
           error_message: error.message,
-          attempts: delivery.attempts + 1
+          attempts: newAttempts,
+          next_retry_at: nextRetryAt,
         });
       }
     }

@@ -69,6 +69,21 @@ const calendarController = {
   }),
 
   /**
+   * Get Google Calendar events for display alongside Facilis events
+   * GET /api/calendar/google-events
+   */
+  getGoogleEvents: asyncHandler(async (req, res) => {
+    const { date_from, date_to } = req.query;
+    try {
+      const googleService = require('../services/google.service');
+      const events = await googleService.pullGoogleEvents(req.user.id, date_from, date_to);
+      res.json(ApiResponse.success('Google Calendar events retrieved', { events }));
+    } catch (err) {
+      res.json(ApiResponse.success('Google Calendar not connected', { events: [] }));
+    }
+  }),
+
+  /**
    * Delete a calendar event (soft delete)
    * DELETE /api/calendar/:id
    */

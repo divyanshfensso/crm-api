@@ -12,6 +12,9 @@ router.post('/', auth, checkPermission('roles', 'create'), validate(createRoleSc
 // Permissions route BEFORE /:id to prevent "permissions" matching as :id
 router.get('/permissions/all', auth, checkPermission('roles', 'read'), roleController.getAllPermissions);
 
+// AI suggest permissions (static route BEFORE /:id)
+router.post('/suggest-permissions', auth, checkPermission('roles', 'create'), roleController.suggestPermissions);
+
 router.get('/:id', auth, checkPermission('roles', 'read'), roleController.getById);
 router.put('/:id', auth, checkPermission('roles', 'update'), validate(updateRoleSchema), roleController.update);
 router.put('/:id/permissions', auth, checkPermission('roles', 'update'), roleController.updatePermissions);
