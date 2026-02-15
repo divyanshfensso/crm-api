@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
+const ssoController = require('../controllers/sso.controller');
 const { auth } = require('../middleware/auth');
 const { validate } = require('../middleware/validate');
 const { registerSchema, loginSchema, updateUserSchema, changePasswordSchema } = require('../utils/validators');
@@ -9,6 +10,9 @@ router.post('/register', validate(registerSchema), authController.register);
 router.post('/login', validate(loginSchema), authController.login);
 router.post('/refresh', authController.refresh);
 router.post('/logout', auth, authController.logout);
+
+// SSO routes
+router.post('/sso/nucleus', ssoController.nucleusSsoLogin);
 
 // Profile routes
 router.get('/me', auth, authController.getMe);
