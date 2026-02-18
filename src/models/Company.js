@@ -132,7 +132,14 @@ module.exports = (sequelize, DataTypes) => {
       custom_fields: {
         type: DataTypes.JSON,
         allowNull: true,
-        defaultValue: {}
+        defaultValue: {},
+        get() {
+          const val = this.getDataValue('custom_fields');
+          if (typeof val === 'string') {
+            try { return JSON.parse(val); } catch (e) { return {}; }
+          }
+          return val || {};
+        }
       },
       parent_company_id: {
         type: DataTypes.INTEGER,

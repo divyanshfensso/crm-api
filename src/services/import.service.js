@@ -794,11 +794,9 @@ const importService = {
               }
             }
 
-            // Debug: log first row to diagnose custom_fields issue
-            if (rowIndex === 1) {
-              console.log('[Import Process] First row mappedRow keys:', Object.keys(mappedRow));
-              console.log('[Import Process] custom_fields:', JSON.stringify(mappedRow.custom_fields));
-              console.log('[Import Process] first_name:', mappedRow.first_name, '| last_name:', mappedRow.last_name);
+            // Stringify custom_fields for MySQL JSON column (workaround for Sequelize/MySQL serialization issue)
+            if (mappedRow.custom_fields && typeof mappedRow.custom_fields === 'object') {
+              mappedRow.custom_fields = JSON.stringify(mappedRow.custom_fields);
             }
 
             // 4. Create the record
