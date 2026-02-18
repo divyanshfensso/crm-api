@@ -5,6 +5,85 @@ const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
 const { ENUMS, normalizeEnumFields } = require('../config/enums');
 
+/**
+ * Detect file encoding from BOM bytes and convert UTF-16 files to UTF-8.
+ * Returns the (possibly converted) file path to use for parsing.
+ */
+function ensureUtf8(filePath) {
+  const buf = Buffer.alloc(4);
+  const fd = fs.openSync(filePath, 'r');
+  fs.readSync(fd, buf, 0, 4, 0);
+  fs.closeSync(fd);
+
+  // UTF-16 LE BOM: FF FE
+  if (buf[0] === 0xFF && buf[1] === 0xFE) {
+    const raw = fs.readFileSync(filePath);
+    const text = raw.toString('utf16le').replace(/^\uFEFF/, '');
+    const utf8Path = filePath + '.utf8.csv';
+    fs.writeFileSync(utf8Path, text, 'utf8');
+    return utf8Path;
+  }
+  // UTF-16 BE BOM: FE FF
+  if (buf[0] === 0xFE && buf[1] === 0xFF) {
+    const raw = fs.readFileSync(filePath);
+    // Swap bytes for BE → LE then decode
+    for (let i = 0; i < raw.length - 1; i += 2) {
+      const tmp = raw[i];
+      raw[i] = raw[i + 1];
+      raw[i + 1] = tmp;
+    }
+    const text = raw.toString('utf16le').replace(/^\uFEFF/, '');
+    const utf8Path = filePath + '.utf8.csv';
+    fs.writeFileSync(utf8Path, text, 'utf8');
+    return utf8Path;
+  }
+  return filePath; // Already UTF-8 (or ASCII)
+}
+
+/**
+ * Auto-detect CSV delimiter by reading the first 2 lines and testing common separators.
+ * Returns the delimiter character that produces the most consistent column split.
+ */
+function detectDelimiter(filePath) {
+  const CANDIDATES = [',', ';', '\t', '|'];
+
+  // Read first ~8KB to get at least 2 lines
+  const fd = fs.openSync(filePath, 'r');
+  const chunk = Buffer.alloc(8192);
+  const bytesRead = fs.readSync(fd, chunk, 0, 8192, 0);
+  fs.closeSync(fd);
+
+  const text = chunk.toString('utf8', 0, bytesRead).replace(/^\uFEFF/, '');
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0);
+
+  if (lines.length < 1) return ','; // fallback
+
+  const headerLine = lines[0];
+  const dataLine = lines.length > 1 ? lines[1] : null;
+
+  let bestDelimiter = ',';
+  let bestScore = 0;
+
+  for (const delim of CANDIDATES) {
+    const headerCols = headerLine.split(delim).length;
+    if (headerCols <= 1) continue; // This delimiter doesn't split the header
+
+    let score = headerCols; // More columns = more likely the right delimiter
+    if (dataLine) {
+      const dataCols = dataLine.split(delim).length;
+      // Bonus if header and data row have same column count
+      if (dataCols === headerCols) score += headerCols * 2;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestDelimiter = delim;
+    }
+  }
+
+  return bestDelimiter;
+}
+
 // Template columns — includes human-readable FK name columns alongside ID columns
 const ENTITY_COLUMNS = {
   contacts: ['first_name', 'last_name', 'email', 'phone', 'mobile', 'company_name', 'job_title', 'department', 'lead_source', 'status', 'address_line1', 'city', 'state', 'country', 'zip_code'],
@@ -369,13 +448,15 @@ const importService = {
     }
 
     const csvParser = require('csv-parser');
+    const parsePath = ensureUtf8(importJob.file_path);
+    const separator = detectDelimiter(parsePath);
 
     return new Promise((resolve, reject) => {
       const rows = [];
       let headers = [];
 
-      const stream = fs.createReadStream(importJob.file_path)
-        .pipe(csvParser({ bom: true }))
+      const stream = fs.createReadStream(parsePath)
+        .pipe(csvParser({ bom: true, separator }))
         .on('headers', (h) => {
           // Normalize headers: strip BOM, zero-width chars, trim whitespace
           headers = h.map(name => name
@@ -444,6 +525,9 @@ const importService = {
     const required = REQUIRED_FIELDS[entityType] || [];
     const entityEnums = ENUMS[entityType] || {};
 
+    const parsePath = ensureUtf8(importJob.file_path);
+    const separator = detectDelimiter(parsePath);
+
     return new Promise((resolve, reject) => {
       const warnings = [];
       let totalRows = 0;
@@ -451,8 +535,12 @@ const importService = {
       let errorRows = 0;
       const maxRows = 100;
 
-      const stream = fs.createReadStream(importJob.file_path)
-        .pipe(csvParser({ bom: true }));
+      const stream = fs.createReadStream(parsePath)
+        .pipe(csvParser({ bom: true, separator }));
+
+      stream.on('headers', (h) => {
+        console.log('[Import Validate] CSV headers:', h, '| separator:', JSON.stringify(separator));
+      });
 
       stream.on('data', (row) => {
         totalRows++;
@@ -638,6 +726,8 @@ const importService = {
     const csvParser = require('csv-parser');
     const columnMapping = importJob.column_mapping || {};
     const useNewFormat = isNewMappingFormat(columnMapping);
+    const parsePath = ensureUtf8(importJob.file_path);
+    const separator = detectDelimiter(parsePath);
 
     return new Promise((resolve, reject) => {
       let successCount = 0;
@@ -645,8 +735,8 @@ const importService = {
       let processedRows = 0;
       const errorLog = [];
 
-      const stream = fs.createReadStream(importJob.file_path)
-        .pipe(csvParser({ bom: true }));
+      const stream = fs.createReadStream(parsePath)
+        .pipe(csvParser({ bom: true, separator }));
 
       const rowPromises = [];
 
