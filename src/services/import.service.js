@@ -358,7 +358,7 @@ const importService = {
       let headers = [];
 
       const stream = fs.createReadStream(importJob.file_path)
-        .pipe(csvParser())
+        .pipe(csvParser({ bom: true }))
         .on('headers', (h) => {
           headers = h;
         })
@@ -429,7 +429,7 @@ const importService = {
       const maxRows = 100;
 
       const stream = fs.createReadStream(importJob.file_path)
-        .pipe(csvParser());
+        .pipe(csvParser({ bom: true }));
 
       stream.on('data', (row) => {
         totalRows++;
@@ -622,7 +622,7 @@ const importService = {
       const errorLog = [];
 
       const stream = fs.createReadStream(importJob.file_path)
-        .pipe(csvParser());
+        .pipe(csvParser({ bom: true }));
 
       const rowPromises = [];
 
