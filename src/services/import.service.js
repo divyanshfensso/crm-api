@@ -519,7 +519,11 @@ const importService = {
       throw ApiError.notFound('Import file not found on disk');
     }
 
-    const columnMapping = importJob.column_mapping || {};
+    let columnMapping = importJob.column_mapping || {};
+    // Safety: handle MySQL returning JSON as string (double-serialization)
+    if (typeof columnMapping === 'string') {
+      try { columnMapping = JSON.parse(columnMapping); } catch (e) { /* keep as-is */ }
+    }
     const entityType = importJob.entity_type;
     const useNewFormat = isNewMappingFormat(columnMapping);
     const required = REQUIRED_FIELDS[entityType] || [];
@@ -527,6 +531,14 @@ const importService = {
 
     const parsePath = ensureUtf8(importJob.file_path);
     const separator = detectDelimiter(parsePath);
+
+    // Debug diagnostics — included in API response
+    const _debug = {
+      separator,
+      columnMappingType: typeof columnMapping,
+      useNewFormat,
+      mappingSample: useNewFormat ? (columnMapping.mappings || []).slice(0, 2) : 'legacy',
+    };
 
     return new Promise((resolve, reject) => {
       const warnings = [];
@@ -539,12 +551,19 @@ const importService = {
         .pipe(csvParser({ bom: true, separator }));
 
       stream.on('headers', (h) => {
+        _debug.csvHeaders = h;
         console.log('[Import Validate] CSV headers:', h, '| separator:', JSON.stringify(separator));
       });
 
       stream.on('data', (row) => {
         totalRows++;
         if (totalRows > maxRows) return;
+
+        // Capture debug info from first row
+        if (totalRows === 1) {
+          _debug.firstRowKeys = Object.keys(row);
+          _debug.firstRowSample = Object.fromEntries(Object.entries(row).slice(0, 3));
+        }
 
         // Apply mapping (normalize CSV row keys to handle BOM/whitespace mismatches)
         const normalizedRow = normalizeCsvRowKeys(row);
@@ -561,6 +580,11 @@ const importService = {
               mappedRow[targetCol] = value;
             }
           }
+        }
+
+        // Capture mapped row debug for first row
+        if (totalRows === 1) {
+          _debug.firstMappedRow = JSON.parse(JSON.stringify(mappedRow));
         }
 
         let rowHasError = false;
@@ -679,6 +703,7 @@ const importService = {
             affected_rows: w.rows.slice(0, 10), // Limit displayed rows
             count: w.rows.length,
           })),
+          _debug,
         });
       });
 
@@ -724,7 +749,11 @@ const importService = {
     await importJob.update({ status: 'processing', error_log: [] });
 
     const csvParser = require('csv-parser');
-    const columnMapping = importJob.column_mapping || {};
+    let columnMapping = importJob.column_mapping || {};
+    // Safety: handle MySQL returning JSON as string (double-serialization)
+    if (typeof columnMapping === 'string') {
+      try { columnMapping = JSON.parse(columnMapping); } catch (e) { /* keep as-is */ }
+    }
     const useNewFormat = isNewMappingFormat(columnMapping);
     const parsePath = ensureUtf8(importJob.file_path);
     const separator = detectDelimiter(parsePath);
