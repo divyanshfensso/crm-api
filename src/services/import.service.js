@@ -532,14 +532,6 @@ const importService = {
     const parsePath = ensureUtf8(importJob.file_path);
     const separator = detectDelimiter(parsePath);
 
-    // Debug diagnostics — included in API response
-    const _debug = {
-      separator,
-      columnMappingType: typeof columnMapping,
-      useNewFormat,
-      mappingSample: useNewFormat ? (columnMapping.mappings || []).slice(0, 2) : 'legacy',
-    };
-
     return new Promise((resolve, reject) => {
       const warnings = [];
       let totalRows = 0;
@@ -551,19 +543,12 @@ const importService = {
         .pipe(csvParser({ bom: true, separator }));
 
       stream.on('headers', (h) => {
-        _debug.csvHeaders = h;
         console.log('[Import Validate] CSV headers:', h, '| separator:', JSON.stringify(separator));
       });
 
       stream.on('data', (row) => {
         totalRows++;
         if (totalRows > maxRows) return;
-
-        // Capture debug info from first row
-        if (totalRows === 1) {
-          _debug.firstRowKeys = Object.keys(row);
-          _debug.firstRowSample = Object.fromEntries(Object.entries(row).slice(0, 3));
-        }
 
         // Apply mapping (normalize CSV row keys to handle BOM/whitespace mismatches)
         const normalizedRow = normalizeCsvRowKeys(row);
@@ -580,11 +565,6 @@ const importService = {
               mappedRow[targetCol] = value;
             }
           }
-        }
-
-        // Capture mapped row debug for first row
-        if (totalRows === 1) {
-          _debug.firstMappedRow = JSON.parse(JSON.stringify(mappedRow));
         }
 
         let rowHasError = false;
@@ -703,7 +683,6 @@ const importService = {
             affected_rows: w.rows.slice(0, 10), // Limit displayed rows
             count: w.rows.length,
           })),
-          _debug,
         });
       });
 
