@@ -67,7 +67,22 @@ function transformValue(value, transformation) {
  * Apply new-format mappings (array-based) to a CSV row
  * Returns a mapped row object ready for DB insertion
  */
+function normalizeCsvRowKeys(row) {
+  const normalized = {};
+  for (const [key, value] of Object.entries(row)) {
+    // Strip BOM, zero-width chars, trim whitespace, normalize quotes
+    const cleanKey = key
+      .replace(/^\uFEFF/, '')
+      .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '')
+      .replace(/^["']|["']$/g, '')
+      .trim();
+    normalized[cleanKey] = value;
+  }
+  return normalized;
+}
+
 function applyMappings(csvRow, mappings) {
+  const normalizedRow = normalizeCsvRowKeys(csvRow);
   const mappedRow = {};
   const notesAccumulator = [];
   let tagsAccumulator = [];
@@ -76,7 +91,9 @@ function applyMappings(csvRow, mappings) {
     const { csv_column, crm_field, transformation } = mapping;
     if (!crm_field || crm_field === '') continue; // Skip column
 
-    const rawValue = csvRow[csv_column];
+    // Normalize the csv_column key the same way
+    const cleanCol = (csv_column || '').replace(/^\uFEFF/, '').replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '').replace(/^["']|["']$/g, '').trim();
+    const rawValue = normalizedRow[cleanCol];
     if (rawValue === undefined || rawValue === '') continue;
 
     if (crm_field === '__notes__') {
@@ -360,10 +377,16 @@ const importService = {
       const stream = fs.createReadStream(importJob.file_path)
         .pipe(csvParser({ bom: true }))
         .on('headers', (h) => {
-          headers = h;
+          // Normalize headers: strip BOM, zero-width chars, trim whitespace
+          headers = h.map(name => name
+            .replace(/^\uFEFF/, '')
+            .replace(/[\u200B-\u200D\uFEFF\u00A0]/g, '')
+            .replace(/^["']|["']$/g, '')
+            .trim()
+          );
         })
         .on('data', (row) => {
-          rows.push(row);
+          rows.push(normalizeCsvRowKeys(row));
           if (rows.length >= 10) {
             stream.destroy();
           }
@@ -435,13 +458,14 @@ const importService = {
         totalRows++;
         if (totalRows > maxRows) return;
 
-        // Apply mapping
+        // Apply mapping (normalize CSV row keys to handle BOM/whitespace mismatches)
+        const normalizedRow = normalizeCsvRowKeys(row);
         let mappedRow;
         if (useNewFormat) {
           mappedRow = applyMappings(row, columnMapping.mappings);
         } else {
           mappedRow = {};
-          for (const [csvCol, value] of Object.entries(row)) {
+          for (const [csvCol, value] of Object.entries(normalizedRow)) {
             const dbCol = columnMapping[csvCol];
             const targetCol = dbCol !== undefined ? dbCol : csvCol;
             if (!targetCol) continue;
@@ -627,7 +651,8 @@ const importService = {
       const rowPromises = [];
 
       stream.on('data', (row) => {
-        // Apply column mapping based on format
+        // Apply column mapping based on format (normalize keys for BOM/whitespace)
+        const normalizedRow = normalizeCsvRowKeys(row);
         let mappedRow;
 
         if (useNewFormat) {
@@ -636,7 +661,7 @@ const importService = {
         } else {
           // Legacy format: { csvCol: dbCol }
           mappedRow = {};
-          for (const [csvCol, value] of Object.entries(row)) {
+          for (const [csvCol, value] of Object.entries(normalizedRow)) {
             const dbCol = columnMapping[csvCol];
             const targetCol = dbCol !== undefined ? dbCol : csvCol;
             if (!targetCol) continue;
