@@ -20,8 +20,14 @@ router.get('/:id', auth, checkPermission('imports', 'read'), importController.ge
 // GET /:id/preview - Preview import file rows
 router.get('/:id/preview', auth, checkPermission('imports', 'read'), importController.preview);
 
+// PUT /:id/entity-type - Update entity type after AI detection
+router.put('/:id/entity-type', auth, checkPermission('imports', 'create'), importController.updateEntityType);
+
 // POST /:id/mapping - Save column mapping
 router.post('/:id/mapping', auth, checkPermission('imports', 'create'), importController.mapColumns);
+
+// POST /:id/validate - Validate import data before processing
+router.post('/:id/validate', auth, checkPermission('imports', 'create'), importController.validate);
 
 // POST /:id/process - Process import job
 router.post('/:id/process', auth, checkPermission('imports', 'create'), importController.process);

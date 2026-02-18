@@ -3,7 +3,7 @@ const path = require('path');
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
-const { normalizeEnumFields } = require('../config/enums');
+const { ENUMS, normalizeEnumFields } = require('../config/enums');
 
 // Template columns — includes human-readable FK name columns alongside ID columns
 const ENTITY_COLUMNS = {
@@ -21,13 +21,107 @@ const ENTITY_EXAMPLES = {
   deals: ['New Deal', '50000', 'USD|EUR|GBP|INR', '75', 'open|won|lost', '2025-12-31', 'John Doe', 'Acme Corp', 'Qualification'],
 };
 
+// Required fields per entity type
+const REQUIRED_FIELDS = {
+  contacts: ['first_name', 'last_name'],
+  companies: ['name'],
+  leads: ['first_name', 'last_name'],
+  deals: ['title'],
+};
+
+/**
+ * Apply a deterministic transformation to a value
+ */
+function transformValue(value, transformation) {
+  if (value === null || value === undefined || !transformation) return value;
+  const str = String(value).trim();
+  if (!str) return str;
+
+  switch (transformation) {
+    case 'split_name_first':
+      return str.split(/\s+/)[0] || str;
+    case 'split_name_last': {
+      const parts = str.split(/\s+/);
+      return parts.length > 1 ? parts.slice(1).join(' ') : '';
+    }
+    case 'normalize_date': {
+      const d = new Date(str);
+      return isNaN(d.getTime()) ? str : d.toISOString().split('T')[0];
+    }
+    case 'normalize_status':
+      return str.toLowerCase().replace(/\s+/g, '_');
+    case 'normalize_phone':
+      return str.replace(/[^+\d]/g, '');
+    case 'to_number': {
+      const num = parseFloat(str.replace(/[^0-9.\-]/g, ''));
+      return isNaN(num) ? str : num;
+    }
+    case 'to_lowercase':
+      return str.toLowerCase();
+    default:
+      return str;
+  }
+}
+
+/**
+ * Apply new-format mappings (array-based) to a CSV row
+ * Returns a mapped row object ready for DB insertion
+ */
+function applyMappings(csvRow, mappings) {
+  const mappedRow = {};
+  const notesAccumulator = [];
+  let tagsAccumulator = [];
+
+  for (const mapping of mappings) {
+    const { csv_column, crm_field, transformation } = mapping;
+    if (!crm_field || crm_field === '') continue; // Skip column
+
+    const rawValue = csvRow[csv_column];
+    if (rawValue === undefined || rawValue === '') continue;
+
+    if (crm_field === '__notes__') {
+      notesAccumulator.push(`${csv_column}: ${rawValue}`);
+    } else if (crm_field === '__tags__') {
+      tagsAccumulator.push(String(rawValue).trim());
+    } else if (crm_field.startsWith('custom_fields.')) {
+      const cfKey = crm_field.substring('custom_fields.'.length);
+      if (!mappedRow.custom_fields) mappedRow.custom_fields = {};
+      mappedRow.custom_fields[cfKey] = transformValue(rawValue, transformation);
+    } else {
+      const transformed = transformValue(rawValue, transformation);
+      mappedRow[crm_field] = transformed;
+    }
+  }
+
+  // Append accumulated notes
+  if (notesAccumulator.length > 0) {
+    const existingNotes = mappedRow.notes || '';
+    const importNotes = '[Imported Data]\n' + notesAccumulator.join('\n');
+    mappedRow.notes = existingNotes ? `${existingNotes}\n\n${importNotes}` : importNotes;
+  }
+
+  // Append accumulated tags
+  if (tagsAccumulator.length > 0) {
+    const existingTags = Array.isArray(mappedRow.tags) ? mappedRow.tags : [];
+    mappedRow.tags = [...existingTags, ...tagsAccumulator];
+  }
+
+  return mappedRow;
+}
+
+/**
+ * Check if column_mapping is in the new format (has mappings array)
+ */
+function isNewMappingFormat(columnMapping) {
+  return columnMapping && Array.isArray(columnMapping.mappings);
+}
+
 /**
  * Resolve human-readable name references to foreign key IDs.
  * Handles: company_name → company_id, contact_name → contact_id, stage → stage_id
  */
 async function resolveReferences(entityType, row) {
   const models = require('../models');
-  const sequelize = models.sequelize || models.Sequelize;
 
   if (entityType === 'contacts') {
     // company_name → company_id
@@ -110,8 +204,6 @@ async function resolveReferences(entityType, row) {
 const importService = {
   /**
    * Get all import jobs with pagination, search, and filters
-   * @param {Object} query - Query parameters
-   * @returns {Promise<Object>} Paginated import jobs list
    */
   getAll: async (query) => {
     const { ImportJob, User } = require('../models');
@@ -121,18 +213,15 @@ const importService = {
 
     const where = {};
 
-    // Search functionality
     if (search) {
       const searchCondition = buildSearchCondition(search, ['filename']);
       Object.assign(where, searchCondition);
     }
 
-    // Filter by entity_type
     if (entity_type) {
       where.entity_type = entity_type;
     }
 
-    // Filter by status
     if (status) {
       where.status = status;
     }
@@ -165,8 +254,6 @@ const importService = {
 
   /**
    * Get import job by ID
-   * @param {number} id - Import job ID
-   * @returns {Promise<Object>} Import job with creator
    */
   getById: async (id) => {
     const { ImportJob, User } = require('../models');
@@ -190,9 +277,6 @@ const importService = {
 
   /**
    * Get CSV template for a given entity type.
-   * Includes a header row and an example row showing valid values.
-   * @param {string} entityType - Entity type (contacts, companies, leads, deals)
-   * @returns {string} CSV string with column headers and example row
    */
   getTemplate: (entityType) => {
     const columns = ENTITY_COLUMNS[entityType];
@@ -210,10 +294,6 @@ const importService = {
 
   /**
    * Upload a CSV file and create an import job record
-   * @param {Object} file - Multer file object
-   * @param {string} entityType - Entity type
-   * @param {number} userId - Current user ID
-   * @returns {Promise<Object>} Created import job
    */
   upload: async (file, entityType, userId) => {
     const { ImportJob } = require('../models');
@@ -237,9 +317,26 @@ const importService = {
   },
 
   /**
+   * Update the entity type of an import job (after AI detection)
+   */
+  updateEntityType: async (importId, entityType) => {
+    const { ImportJob } = require('../models');
+
+    if (!ENTITY_COLUMNS[entityType]) {
+      throw ApiError.badRequest(`Invalid entity type: ${entityType}. Valid types: ${Object.keys(ENTITY_COLUMNS).join(', ')}`);
+    }
+
+    const importJob = await ImportJob.findByPk(importId);
+    if (!importJob) {
+      throw ApiError.notFound('Import job not found');
+    }
+
+    await importJob.update({ entity_type: entityType });
+    return importJob;
+  },
+
+  /**
    * Preview the first 10 rows of an import job's CSV file
-   * @param {number} importId - Import job ID
-   * @returns {Promise<Object>} Headers and first 10 rows
    */
   preview: async (importId) => {
     const { ImportJob } = require('../models');
@@ -285,9 +382,7 @@ const importService = {
 
   /**
    * Save column mapping for an import job
-   * @param {number} importId - Import job ID
-   * @param {Object} mapping - Column mapping (CSV column -> DB column)
-   * @returns {Promise<Object>} Updated import job
+   * Supports both old format { csvCol: dbCol } and new format { mappings: [...] }
    */
   mapColumns: async (importId, mapping) => {
     const { ImportJob } = require('../models');
@@ -304,10 +399,186 @@ const importService = {
   },
 
   /**
+   * Validate import data before processing (dry-run)
+   * Reads up to 100 rows, applies mapping + transforms, checks for issues
+   */
+  validate: async (importId) => {
+    const { ImportJob } = require('../models');
+    const csvParser = require('csv-parser');
+
+    const importJob = await ImportJob.findByPk(importId);
+    if (!importJob) {
+      throw ApiError.notFound('Import job not found');
+    }
+
+    if (!fs.existsSync(importJob.file_path)) {
+      throw ApiError.notFound('Import file not found on disk');
+    }
+
+    const columnMapping = importJob.column_mapping || {};
+    const entityType = importJob.entity_type;
+    const useNewFormat = isNewMappingFormat(columnMapping);
+    const required = REQUIRED_FIELDS[entityType] || [];
+    const entityEnums = ENUMS[entityType] || {};
+
+    return new Promise((resolve, reject) => {
+      const warnings = [];
+      let totalRows = 0;
+      let validRows = 0;
+      let errorRows = 0;
+      const maxRows = 100;
+
+      const stream = fs.createReadStream(importJob.file_path)
+        .pipe(csvParser());
+
+      stream.on('data', (row) => {
+        totalRows++;
+        if (totalRows > maxRows) return;
+
+        // Apply mapping
+        let mappedRow;
+        if (useNewFormat) {
+          mappedRow = applyMappings(row, columnMapping.mappings);
+        } else {
+          mappedRow = {};
+          for (const [csvCol, value] of Object.entries(row)) {
+            const dbCol = columnMapping[csvCol];
+            const targetCol = dbCol !== undefined ? dbCol : csvCol;
+            if (!targetCol) continue;
+            if (value !== undefined && value !== '') {
+              mappedRow[targetCol] = value;
+            }
+          }
+        }
+
+        let rowHasError = false;
+
+        // Check required fields
+        for (const field of required) {
+          if (!mappedRow[field] || String(mappedRow[field]).trim() === '') {
+            const existing = warnings.find(w => w.type === 'missing_required' && w.field === field);
+            if (existing) {
+              existing.rows.push(totalRows);
+              existing.message = `${existing.rows.length} rows missing required field "${field}"`;
+            } else {
+              warnings.push({
+                type: 'missing_required',
+                field,
+                message: `1 row missing required field "${field}"`,
+                severity: 'error',
+                rows: [totalRows],
+              });
+            }
+            rowHasError = true;
+          }
+        }
+
+        // Check enum values
+        for (const [field, validValues] of Object.entries(entityEnums)) {
+          if (mappedRow[field] && typeof mappedRow[field] === 'string') {
+            const normalized = mappedRow[field].trim().toLowerCase().replace(/\s+/g, '_');
+            const match = validValues.find(v => v.toLowerCase() === normalized);
+            if (!match) {
+              const existing = warnings.find(w => w.type === 'invalid_enum' && w.field === field);
+              if (existing) {
+                existing.rows.push(totalRows);
+                existing.message = `${existing.rows.length} rows have invalid "${field}" value`;
+              } else {
+                warnings.push({
+                  type: 'invalid_enum',
+                  field,
+                  message: `Row ${totalRows} has invalid "${field}" value: "${mappedRow[field]}". Valid: ${validValues.join(', ')}`,
+                  severity: 'warning',
+                  rows: [totalRows],
+                });
+              }
+            }
+          }
+        }
+
+        // Check email format
+        if (mappedRow.email && typeof mappedRow.email === 'string') {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(mappedRow.email.trim())) {
+            const existing = warnings.find(w => w.type === 'invalid_email');
+            if (existing) {
+              existing.rows.push(totalRows);
+              existing.message = `${existing.rows.length} rows have invalid email format`;
+            } else {
+              warnings.push({
+                type: 'invalid_email',
+                field: 'email',
+                message: `Row ${totalRows} has invalid email format`,
+                severity: 'warning',
+                rows: [totalRows],
+              });
+            }
+          }
+        }
+
+        // Check numeric fields
+        const numericFields = ['employee_count', 'annual_revenue', 'value', 'probability', 'score'];
+        for (const field of numericFields) {
+          if (mappedRow[field] && typeof mappedRow[field] === 'string') {
+            const cleaned = mappedRow[field].replace(/[^0-9.\-]/g, '');
+            if (cleaned && isNaN(parseFloat(cleaned))) {
+              const existing = warnings.find(w => w.type === 'invalid_number' && w.field === field);
+              if (existing) {
+                existing.rows.push(totalRows);
+                existing.message = `${existing.rows.length} rows have invalid number in "${field}"`;
+              } else {
+                warnings.push({
+                  type: 'invalid_number',
+                  field,
+                  message: `Row ${totalRows} has invalid number in "${field}"`,
+                  severity: 'warning',
+                  rows: [totalRows],
+                });
+              }
+            }
+          }
+        }
+
+        if (rowHasError) {
+          errorRows++;
+        } else {
+          validRows++;
+        }
+      });
+
+      stream.on('end', () => {
+        // Calculate quality score
+        const analyzedRows = Math.min(totalRows, maxRows);
+        const qualityScore = analyzedRows > 0
+          ? Math.round((validRows / analyzedRows) * 100)
+          : 0;
+
+        resolve({
+          total_rows: totalRows,
+          analyzed_rows: analyzedRows,
+          valid_rows: validRows,
+          error_rows: errorRows,
+          quality_score: qualityScore,
+          warnings: warnings.map(w => ({
+            type: w.type,
+            field: w.field,
+            message: w.message,
+            severity: w.severity,
+            affected_rows: w.rows.slice(0, 10), // Limit displayed rows
+            count: w.rows.length,
+          })),
+        });
+      });
+
+      stream.on('error', (err) => {
+        reject(ApiError.badRequest(`Error reading CSV file: ${err.message}`));
+      });
+    });
+  },
+
+  /**
    * Process an import job: read CSV, create records, track progress.
-   * Includes ENUM normalization and FK name-to-ID resolution.
-   * @param {number} importId - Import job ID
-   * @returns {Promise<Object>} Updated import job with final counts
+   * Supports both old mapping format and new AI-powered mapping format.
    */
   process: async (importId) => {
     const { ImportJob } = require('../models');
@@ -342,6 +613,7 @@ const importService = {
 
     const csvParser = require('csv-parser');
     const columnMapping = importJob.column_mapping || {};
+    const useNewFormat = isNewMappingFormat(columnMapping);
 
     return new Promise((resolve, reject) => {
       let successCount = 0;
@@ -355,16 +627,22 @@ const importService = {
       const rowPromises = [];
 
       stream.on('data', (row) => {
-        // Apply column mapping: rename CSV columns to DB columns
-        const mappedRow = {};
-        for (const [csvCol, value] of Object.entries(row)) {
-          const dbCol = columnMapping[csvCol];
-          // Skip columns explicitly mapped to "" (Skip Column)
-          // If no mapping exists (undefined), fall back to CSV header name
-          const targetCol = dbCol !== undefined ? dbCol : csvCol;
-          if (!targetCol) continue; // Skip empty-mapped columns
-          if (value !== undefined && value !== '') {
-            mappedRow[targetCol] = value;
+        // Apply column mapping based on format
+        let mappedRow;
+
+        if (useNewFormat) {
+          // New AI-powered format: { mappings: [...] }
+          mappedRow = applyMappings(row, columnMapping.mappings);
+        } else {
+          // Legacy format: { csvCol: dbCol }
+          mappedRow = {};
+          for (const [csvCol, value] of Object.entries(row)) {
+            const dbCol = columnMapping[csvCol];
+            const targetCol = dbCol !== undefined ? dbCol : csvCol;
+            if (!targetCol) continue;
+            if (value !== undefined && value !== '') {
+              mappedRow[targetCol] = value;
+            }
           }
         }
 

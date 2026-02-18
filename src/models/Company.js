@@ -129,6 +129,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         defaultValue: []
       },
+      custom_fields: {
+        type: DataTypes.JSON,
+        allowNull: true,
+        defaultValue: {}
+      },
       parent_company_id: {
         type: DataTypes.INTEGER,
         allowNull: true,

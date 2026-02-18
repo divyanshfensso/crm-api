@@ -2,6 +2,7 @@ const importService = require('../services/import.service');
 const { asyncHandler } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../middleware/audit');
 const ApiResponse = require('../utils/apiResponse');
+const ApiError = require('../utils/apiError');
 
 const importController = {
   /**
@@ -77,6 +78,28 @@ const importController = {
   mapColumns: asyncHandler(async (req, res) => {
     const importJob = await importService.mapColumns(req.params.id, req.body.column_mapping);
     res.json(ApiResponse.success('Column mapping saved successfully', { importJob }));
+  }),
+
+  /**
+   * Update entity type for an import job (after AI detection)
+   * PUT /api/imports/:id/entity-type
+   */
+  updateEntityType: asyncHandler(async (req, res) => {
+    const { entity_type } = req.body;
+    if (!entity_type) {
+      throw ApiError.badRequest('entity_type is required');
+    }
+    const importJob = await importService.updateEntityType(req.params.id, entity_type);
+    res.json(ApiResponse.success('Entity type updated successfully', { importJob }));
+  }),
+
+  /**
+   * Validate import data before processing (dry-run)
+   * POST /api/imports/:id/validate
+   */
+  validate: asyncHandler(async (req, res) => {
+    const result = await importService.validate(req.params.id);
+    res.json(ApiResponse.success('Import validation complete', result));
   }),
 
   /**

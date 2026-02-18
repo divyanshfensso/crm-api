@@ -73,6 +73,10 @@ router.use('/integrations/microsoft', microsoftIntegrationRoutes);
 const aiRoutes = require('./ai.routes');
 router.use('/ai', aiRoutes);
 
+// Custom fields
+const customFieldRoutes = require('./customField.routes');
+router.use('/custom-fields', customFieldRoutes);
+
 // Notification routes
 const notificationRoutes = require('./notification.routes');
 router.use('/notifications', notificationRoutes);

@@ -31,6 +31,9 @@ router.get('/dashboard/insights', auth, checkPermission('dashboard', 'read'), ai
 // Report query parsing
 router.post('/reports/parse-query', auth, checkPermission('reports', 'create'), aiController.parseReportQuery);
 
+// Import CSV analysis
+router.post('/import/analyze', auth, checkPermission('imports', 'create'), aiController.analyzeImportCSV);
+
 // Activity summarization
 router.post('/activities/summarize', auth, checkPermission('activities', 'read'), aiController.summarizeActivities);
 

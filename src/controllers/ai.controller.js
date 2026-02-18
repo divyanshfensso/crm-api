@@ -112,6 +112,29 @@ const aiController = {
   }),
 
   /**
+   * Analyze CSV for smart import — detect entity, map columns, suggest transforms
+   * POST /api/ai/import/analyze
+   */
+  analyzeImportCSV: asyncHandler(async (req, res) => {
+    const { headers, sampleRows, entityTypeHint } = req.body;
+
+    if (!headers || !Array.isArray(headers) || headers.length === 0) {
+      throw ApiError.badRequest('CSV headers are required');
+    }
+
+    if (!sampleRows || !Array.isArray(sampleRows) || sampleRows.length === 0) {
+      throw ApiError.badRequest('Sample data rows are required');
+    }
+
+    const result = await aiService.analyzeImportCSV(
+      headers,
+      sampleRows.slice(0, 5),
+      entityTypeHint || null
+    );
+    res.json(ApiResponse.success('Import analysis complete', result));
+  }),
+
+  /**
    * Summarize activities
    * POST /api/ai/activities/summarize
    */

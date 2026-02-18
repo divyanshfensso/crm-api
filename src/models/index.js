@@ -62,6 +62,9 @@ const WorkflowLog = require('./WorkflowLog')(sequelize, DataTypes);
 // Phase 5 models (Integrations)
 const UserIntegration = require('./UserIntegration')(sequelize, DataTypes);
 
+// Custom fields
+const CustomField = require('./CustomField')(sequelize, DataTypes);
+
 // Phase 6 models
 const Notification = require('./Notification')(sequelize, DataTypes);
 
@@ -108,6 +111,7 @@ db.Workflow = Workflow;
 db.WorkflowStep = WorkflowStep;
 db.WorkflowLog = WorkflowLog;
 db.UserIntegration = UserIntegration;
+db.CustomField = CustomField;
 db.Notification = Notification;
 
 // Setup associations

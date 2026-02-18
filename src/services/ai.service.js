@@ -566,6 +566,94 @@ Use sensible defaults. If the query mentions time periods, calculate approximate
   },
 
   /**
+   * Analyze CSV data for smart import — detect entity type, map columns, suggest transformations
+   */
+  analyzeImportCSV: async (headers, sampleRows, entityTypeHint = null) => {
+    try {
+      const model = await getModel(
+        'You are a CRM data import assistant. Analyze CSV data and intelligently map columns to CRM database fields. Be precise and return valid JSON only.'
+      );
+
+      const sampleDataStr = sampleRows
+        .map((row, i) => `Row ${i + 1}: ${JSON.stringify(row)}`)
+        .join('\n');
+
+      const prompt = `Analyze this CSV file for import into a CRM system.
+
+CSV Headers: ${JSON.stringify(headers)}
+
+Sample Data (first ${sampleRows.length} rows):
+${sampleDataStr}
+
+${entityTypeHint && entityTypeHint !== 'auto' ? `The user selected entity type: ${entityTypeHint}` : 'Auto-detect the most appropriate entity type based on the columns and data.'}
+
+Available entity types and their database fields:
+- contacts: first_name, last_name, email, phone, mobile, company_name, job_title, department, lead_source, status (active|inactive|prospect|customer|churned), address_line1, address_line2, city, state, country, zip_code, notes
+- companies: name, industry, website, phone, email, employee_count, annual_revenue, address_line1, address_line2, city, state, country, zip_code, description
+- leads: first_name, last_name, email, phone, company_name, job_title, lead_source, status (new|contacted|qualified|unqualified|converted|lost), score, notes
+- deals: title, value, currency, probability, status (open|won|lost), expected_close_date, contact_name, company_name, stage, notes
+
+Return ONLY a JSON object:
+{
+  "detected_entity": "contacts",
+  "entity_confidence": 0.95,
+  "entity_reasoning": "Brief explanation",
+  "mappings": [
+    {
+      "csv_column": "Full Name",
+      "crm_field": "first_name",
+      "confidence": 0.9,
+      "transformation": "split_name_first",
+      "notes": "Will extract first name from full name"
+    }
+  ],
+  "unmapped_columns": ["Column that doesn't map to any CRM field"],
+  "warnings": ["Any data quality warnings"]
+}
+
+Rules:
+- A single CSV column CAN map to multiple CRM fields (e.g., "Full Name" -> first_name AND last_name as separate entries)
+- confidence is 0.0 to 1.0
+- Valid transformations: null (direct copy), "split_name_first", "split_name_last", "normalize_date", "normalize_status", "normalize_phone", "to_number", "to_lowercase"
+- Use "split_name_first" and "split_name_last" when a single column contains a full name that needs splitting
+- For columns that don't map to any CRM field, list them in unmapped_columns
+- Be smart about semantic matching: "Tel" -> phone, "Company" -> company_name, "Role" -> job_title, etc.
+- detected_entity must be one of: contacts, companies, leads, deals`;
+
+      const result = await model.generateContent(prompt);
+      const parsed = safeParseJSON(result.response.text());
+
+      // Validate and sanitize the response
+      const validEntities = ['contacts', 'companies', 'leads', 'deals'];
+      if (!validEntities.includes(parsed.detected_entity)) {
+        parsed.detected_entity = entityTypeHint && entityTypeHint !== 'auto' ? entityTypeHint : 'contacts';
+      }
+
+      const validTransformations = [null, 'split_name_first', 'split_name_last', 'normalize_date', 'normalize_status', 'normalize_phone', 'to_number', 'to_lowercase'];
+      if (Array.isArray(parsed.mappings)) {
+        parsed.mappings = parsed.mappings.map(m => ({
+          csv_column: m.csv_column || '',
+          crm_field: m.crm_field || '',
+          confidence: Math.min(1, Math.max(0, parseFloat(m.confidence) || 0.5)),
+          transformation: validTransformations.includes(m.transformation) ? m.transformation : null,
+          notes: m.notes || '',
+        }));
+      } else {
+        parsed.mappings = [];
+      }
+
+      parsed.entity_confidence = Math.min(1, Math.max(0, parseFloat(parsed.entity_confidence) || 0.5));
+      parsed.unmapped_columns = Array.isArray(parsed.unmapped_columns) ? parsed.unmapped_columns : [];
+      parsed.warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
+
+      return parsed;
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw ApiError.internal('Import CSV analysis failed: ' + error.message);
+    }
+  },
+
+  /**
    * Summarize activities for a contact or deal
    */
   summarizeActivities: async (entityType, entityId) => {
