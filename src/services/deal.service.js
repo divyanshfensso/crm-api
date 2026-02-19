@@ -1,7 +1,7 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
-const { sanitizeFKFields } = require('../utils/helpers');
+const { sanitizeFKFields, parseJsonFields, parseJsonFieldsArray } = require('../utils/helpers');
 
 const DEAL_FK_FIELDS = ['contact_id', 'company_id', 'owner_id', 'pipeline_id', 'stage_id'];
 
@@ -90,7 +90,7 @@ const dealService = {
     });
 
     return {
-      data: rows,
+      data: parseJsonFieldsArray(rows, ['custom_fields', 'tags'], { custom_fields: {}, tags: [] }),
       meta: { page, limit, total: count, totalPages: Math.ceil(count / limit) },
     };
   },
@@ -149,7 +149,7 @@ const dealService = {
       throw ApiError.notFound('Deal not found');
     }
 
-    return deal;
+    return parseJsonFields(deal, ['custom_fields', 'tags'], { custom_fields: {}, tags: [] });
   },
 
   /**

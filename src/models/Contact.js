@@ -131,16 +131,25 @@ module.exports = (sequelize, DataTypes) => {
       tags: {
         type: DataTypes.JSON,
         allowNull: true,
-        defaultValue: []
+        defaultValue: [],
+        get() {
+          let val = this.getDataValue('tags');
+          if (!val) return [];
+          while (typeof val === 'string') {
+            try { val = JSON.parse(val); } catch (e) { return []; }
+          }
+          return Array.isArray(val) ? val : [];
+        }
       },
       custom_fields: {
         type: DataTypes.JSON,
         allowNull: true,
         defaultValue: {},
         get() {
-          const val = this.getDataValue('custom_fields');
-          if (typeof val === 'string') {
-            try { return JSON.parse(val); } catch (e) { return {}; }
+          let val = this.getDataValue('custom_fields');
+          if (!val) return {};
+          while (typeof val === 'string') {
+            try { val = JSON.parse(val); } catch (e) { return {}; }
           }
           return val || {};
         }

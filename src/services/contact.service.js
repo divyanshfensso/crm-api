@@ -1,7 +1,7 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
-const { sanitizeFKFields } = require('../utils/helpers');
+const { sanitizeFKFields, parseJsonFields, parseJsonFieldsArray } = require('../utils/helpers');
 
 const contactService = {
   /**
@@ -72,7 +72,7 @@ const contactService = {
     });
 
     return {
-      data: rows,
+      data: parseJsonFieldsArray(rows, ['custom_fields', 'tags'], { custom_fields: {}, tags: [] }),
       meta: {
         page,
         limit,
@@ -122,7 +122,7 @@ const contactService = {
       throw ApiError.notFound('Contact not found');
     }
 
-    return contact;
+    return parseJsonFields(contact, ['custom_fields', 'tags'], { custom_fields: {}, tags: [] });
   },
 
   /**

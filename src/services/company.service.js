@@ -1,7 +1,7 @@
 const { Op } = require('sequelize');
 const ApiError = require('../utils/apiError');
 const { getPagination, getSorting, buildSearchCondition } = require('../utils/pagination');
-const { sanitizeFKFields } = require('../utils/helpers');
+const { sanitizeFKFields, parseJsonFields, parseJsonFieldsArray } = require('../utils/helpers');
 
 const companyService = {
   /**
@@ -52,7 +52,7 @@ const companyService = {
     });
 
     return {
-      data: rows,
+      data: parseJsonFieldsArray(rows, ['custom_fields', 'tags'], { custom_fields: {}, tags: [] }),
       meta: {
         page,
         limit,
@@ -109,7 +109,7 @@ const companyService = {
     const contactsCount = await Contact.count({ where: { company_id: id } });
     const dealsCount = await Deal.count({ where: { company_id: id } });
 
-    const companyData = company.toJSON();
+    const companyData = parseJsonFields(company, ['custom_fields', 'tags'], { custom_fields: {}, tags: [] });
     companyData.contacts_count = contactsCount;
     companyData.deals_count = dealsCount;
 
